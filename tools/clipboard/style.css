@@ -1,0 +1,107 @@
+:root {
+    --font: system-ui, sans-serif, ui-sans-serif;
+}
+
+body {
+    background: transparent !important;
+}
+
+#wrapper {
+    width: 100vw;
+    height: 100vh;
+    position: fixed;
+    inset: 0;
+    border-radius: var(--border-radius-medium);
+    border: 1px solid var(--elevate-2);
+    overflow: hidden;
+}
+
+#handle {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 24px;
+    -webkit-app-region: drag;
+}
+
+#handle div {
+    background: var(--elevate-2);
+    width: 24px;
+    height: 4px;
+    border-radius: 2px;
+}
+
+#clipboardHistory {
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+    padding-top: 0;
+    overflow: auto;
+    height: 100%;
+    gap: 8px;
+}
+
+#main {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+#content {
+    flex: 1;
+    height: 100%;
+    overflow: hidden;
+}
+
+#content ls-tab {
+    height: 100%;
+}
+
+#main-background {
+    width: 100%;
+    height: 100%;
+    background: var(--background);
+}
+
+#wrapper.acrylic #main-background {
+    backdrop-filter: blur(100px);
+    background: color-mix(in oklab, var(--background) 100%, transparent 50%);
+    /* background: transparent; */
+}
+
+.clipboard-item {
+    cursor: pointer;
+    user-select: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.clipboard-item-image-container {
+    width: 100%;
+}
+
+.clipboard-item-image-container img {
+    width: 100%;
+    border-radius: 4px;
+}
+
+.clipboard-item-text-container {
+    max-height: 120px;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: pre-wrap;
+    width: 100%;
+    word-break: break-all;
+}
+
+.buttons {
+    display: flex;
+    gap: 8px;
+    padding: 0 8px;
+    justify-content: center;
+}
