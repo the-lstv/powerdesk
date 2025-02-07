@@ -5,14 +5,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <script src="http://cdn.extragon.test/ls/dev/tooltips,toast,tabs/ls.js"></script>
-    <link rel="stylesheet" href="http://cdn.extragon.test/ls/dev/flat/ls.css">
+    <!-- Base -->
+    <link rel="stylesheet" href="../../assets/css/base.css">
+    <script defer src="../../assets/js/base.js"></script>
 
+    <!-- Own resources -->
     <link rel="stylesheet" href="style.css">
-    <script src="script.js"></script>
+    <script defer src="script.js"></script>
+
+    <!-- LS -->
+    <script src="../../assets/ls/bundle.js"></script>
+    <link rel="stylesheet" href="../../assets/ls/bundle.css">
+
 </head>
 
-<body ls ls-style="flat" ls-accent="auto" class="level-1">
+<body ls ls-style="flat" ls-accent="auto" class="level-1 force-shadow">
 
     <div id="wrapper">
 
@@ -25,6 +32,7 @@
                 <div id="content">
                     <ls-tab id="clipboardManager">
                         <ls-div class="buttons">
+                            <h3 class="title">Clipboard</h3>
                             <button class="elevated pill" onclick="clearAll()">Clear all</button>
                         </ls-div>
 

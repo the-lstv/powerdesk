@@ -6,12 +6,16 @@ class Tool {
         this.icon = icon;
         this.action = action;
 
+        this.width = 300;
+        this.height = 425;
+
         this.window = new BrowserWindow({
-            width: 300,
-            height: 425,
+            width: this.width,
+            height: this.height,
             frame: false,
             transparent: true,
             alwaysOnTop: true,
+            skipTaskbar: true,
             hasShadow: true,
             resizable: false,
 
@@ -26,18 +30,29 @@ class Tool {
         this.window.on('move', () => this.reportPosition());
         
         this.window.loadURL('file://' + __dirname + '/tools/' + this.name + '/index.html');
-        console.log('file://' + __dirname + '/tools/' + this.name + '/index.html');
         
         this.window.hide();
     }
 
     toggleWindow() {
         if (this.window.isVisible()) {
-            this.window.hide();
+            this.hide();
         } else {
-            this.window.show();
-            this.window.focus();
+            this.show();
         }
+    }
+
+    hide(){
+        this.window.minimize();
+        this.window.hide();
+        this.window.setSize(this.width, this.height);
+    }
+    
+    show(){
+        this.window.show();
+        this.window.focus();
+        this.window.webContents.send('focus');
+        this.window.setSize(this.width, this.height);
     }
 
     reportPosition() {
@@ -52,11 +67,11 @@ app.whenReady().then(() => {
 
     tools.clipboardManager = new Tool('clipboard');
 
-    globalShortcut.register('Super+v', () => {
+    globalShortcut.register('Alt+v', () => {
         tools.clipboardManager.toggleWindow();
     });
 
-    globalShortcut.register('Super+.', () => {
+    globalShortcut.register('Alt+.', () => {
         tools.clipboardManager.toggleWindow();
     });
 
@@ -77,7 +92,15 @@ app.whenReady().then(() => {
 
     ipcMain.handle('get-position', event => {
         event.sender._parent.reportPosition();
-    }) 
+    })
+
+    ipcMain.on('toggle-window', event => {
+        event.sender._parent.toggleWindow();
+    })
+
+    ipcMain.on('close-window', event => {
+        event.sender._parent.hide();
+    })
 })();
 
 app.on('will-quit', () => {

@@ -1,57 +1,47 @@
-LS.Color.autoScheme()
-
+const { exec } = require("child_process");
 const { xxh3 } = require("@node-rs/xxhash");
 
 const mainElement = document.getElementById('main');
-const wrapperElement = document.getElementById('wrapper');
 const clipboardHistory = document.getElementById('clipboardHistory');
 
-const tabs = new LS.Tabs(document.getElementById('content'), { list: false })
+const tabs = new LS.Tabs(document.getElementById('content'), { list: false, unstyled: true });
 
-const clipboardEvent = require('clipboard-event')
-const { ipcRenderer, clipboard } = require('electron');
+const clipboardEvent = require('clipboard-event');
+const { clipboard } = require('electron');
 
 clipboardEvent.startListening();
 
-async function getWallpaper() {
-    return await ipcRenderer.invoke('get-wallpaper');
-}
+ipcRenderer.on('focus', (event, x, y) => {
+    const item = clipboardHistory.children[0];
 
-let wallpaper = null;
-
-async function enableAcrylicWindow(){
-    if(!wallpaper){
-        wallpaper = await getWallpaper();
+    if(item){
+        item.querySelector(".clipboard-item").focus();
     }
+});
 
-    wrapperElement.style.backgroundImage = `url(${wallpaper})`;
-    wrapperElement.classList.add('acrylic');
+document.addEventListener("keydown", function (event) {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault(); // Prevent scrolling
 
-    ipcRenderer.invoke('get-position');
+        let focusable = Array.from(clipboardHistory.children);
 
-    ipcRenderer.on('listen-to-window-move', (event, x, y) => {
-        wrapperElement.style.backgroundPosition = `${-(x - screen.availLeft)}px ${-(y - screen.availTop)}px`;
-        wrapperElement.style.backgroundSize = `${screen.width}px ${screen.height}px`;
-    });
-}
+        if(focusable.length === 0) return;
 
-async function enableDynamicColor(){
-    if(!wallpaper){
-        wallpaper = await getWallpaper();
+        let currentIndex = focusable.indexOf(document.activeElement);
+
+        if (event.key === "ArrowDown") {
+            let nextIndex = (currentIndex + 1) % focusable.length;
+            focusable[nextIndex].focus();
+        } else if (event.key === "ArrowUp") {
+            let prevIndex = (currentIndex - 1 + focusable.length) % focusable.length;
+            focusable[prevIndex].focus();
+        }
     }
+});
 
-    const img = new Image();
-    img.src = wallpaper;
-
-    img.onload = function(){
-        const color = LS.Color.fromImage(img);
-
-        LS.Color.setAccent(color);
-    }
-}
-
-enableDynamicColor()
-// enableAcrylicWindow()
+window.addEventListener("blur", () => {
+    ipcRenderer.send('close-window');
+});
 
 const clipboardItems = [];
 
@@ -84,12 +74,19 @@ clipboardEvent.on('change', () => {
         element: N("ls-box", {
             class: "clipboard-item contained level-2",
 
+            attr: {
+                tabindex: "1",
+            },
+
             onclick() {
                 clipboard.write(item.content);
 
                 LS.Toast.show("Copied to clipboard", {
                     timeout: 1500
                 });
+
+                ipcRenderer.send('close-window');
+                paste();
             }
         }),
 
@@ -168,3 +165,37 @@ function clearAll(){
     clipboardItems.length = 0;
     clipboardHistory.innerHTML = "";
 }
+
+
+function paste() {
+    if (process.platform === "linux") {
+        exec("xdotool key ctrl+v");
+    } else if (process.platform === "win32") {
+        exec("powershell.exe -command \"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^{v}')\"");
+    } else if (process.platform === "darwin") {
+        exec('osascript -e \'tell application "System Events" to keystroke "v" using command down\'');
+    }
+}
+
+// Windows is always so complicated 🤡
+// if(process.platform === "win32"){
+//     const ffi = require("ffi-napi");
+//     // const ref = require("ref-napi");
+
+//     const user32 = new ffi.Library("user32.dll", {
+//         keybd_event: ["void", ["uint8", "uint8", "uint32", "int32"]]
+//     });
+
+//     // Constants for key events
+//     const KEYEVENTF_KEYDOWN = 0x0000;
+//     const KEYEVENTF_KEYUP = 0x0002;
+//     const VK_CONTROL = 0x11;
+//     const VK_V = 0x56;
+
+//     paste = () => {
+//         user32.keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYDOWN, 0);
+//         user32.keybd_event(VK_V, 0, KEYEVENTF_KEYDOWN, 0);
+//         user32.keybd_event(VK_V, 0, KEYEVENTF_KEYUP, 0);
+//         user32.keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0);
+//     }
+// }
