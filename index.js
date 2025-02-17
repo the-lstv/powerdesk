@@ -18,6 +18,7 @@ class Tool {
             skipTaskbar: true,
             hasShadow: true,
             resizable: false,
+            show: false,
 
             webPreferences: {
                 nodeIntegration: true,
@@ -32,6 +33,12 @@ class Tool {
         this.window.loadURL('file://' + __dirname + '/tools/' + this.name + '/index.html');
         
         this.window.hide();
+
+        this.window.setSkipTaskbar(true);
+        
+        setTimeout(() => {
+            this.window.setSkipTaskbar(true);
+        }, 1000);
     }
 
     toggleWindow() {

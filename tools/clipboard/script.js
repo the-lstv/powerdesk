@@ -177,10 +177,10 @@ function paste() {
     }
 }
 
-// Windows is always so complicated 🤡
+// Windows ¯\_(ツ)_/¯
 // if(process.platform === "win32"){
 //     const ffi = require("ffi-napi");
-//     // const ref = require("ref-napi");
+//     const ref = require("ref-napi");
 
 //     const user32 = new ffi.Library("user32.dll", {
 //         keybd_event: ["void", ["uint8", "uint8", "uint32", "int32"]]
