@@ -1,113 +1,129 @@
 const { app, BrowserWindow, globalShortcut, ipcMain } = require('electron');
+const fs = require('fs');
 
-class Tool {
-    constructor(name, icon, action) {
+class ApplicationContext {
+    constructor(name) {
         this.name = name;
-        this.icon = icon;
-        this.action = action;
+        // this.icon = icon;
+        // this.action = action;
 
-        this.width = 300;
-        this.height = 425;
+        if(fs.existsSync(__dirname + '/tools/' + this.name + '/index.js')) {
+            const constructor = require('./tools/' + this.name + '/');
 
-        this.window = new BrowserWindow({
-            width: this.width,
-            height: this.height,
-            frame: false,
-            transparent: true,
-            alwaysOnTop: true,
-            skipTaskbar: true,
-            hasShadow: true,
-            resizable: false,
-            show: false,
-
-            webPreferences: {
-                nodeIntegration: true,
-                contextIsolation: false
+            if(typeof constructor === 'function') {
+                constructor(this);
             }
-        });
-
-        this.window.webContents._parent = this;
-
-        this.window.on('move', () => this.reportPosition());
-        
-        this.window.loadURL('file://' + __dirname + '/tools/' + this.name + '/index.html');
-        
-        this.window.hide();
-
-        this.window.setSkipTaskbar(true);
-        
-        setTimeout(() => {
-            this.window.setSkipTaskbar(true);
-        }, 1000);
-    }
-
-    toggleWindow() {
-        if (this.window.isVisible()) {
-            this.hide();
-        } else {
-            this.show();
         }
     }
 
-    hide(){
-        this.window.minimize();
-        this.window.hide();
-        this.window.setSize(this.width, this.height);
-    }
+    createWindow(options, content = 'file://' + __dirname + '/tools/' + this.name + '/index.html') {
+        const window = new BrowserWindow(options);
+
+        window.webContents._parent = this;
+
+        window.on('move', () => this.reportPosition());
+
+        if(content) {
+            window.loadURL(content);
+        }
+        
+        if(options.show === false) window.hide();
+
+        if(options.persistent === true) {
+            window.on('close', (event) => {
+                event.preventDefault();
+                window.hide();
+            });
+        }
+
+        if(options.skipTaskbar){
+            window.setSkipTaskbar(true);
     
-    show(){
-        this.window.show();
-        this.window.focus();
-        this.window.webContents.send('focus');
-        this.window.setSize(this.width, this.height);
+            setTimeout(() => {
+                this.window.setSkipTaskbar(true);
+            }, 1000);
+        }
+
+        // TODO: Change
+        this.window = window;
+
+        return window;
     }
 
     reportPosition() {
         const [x, y] = this.window.getPosition();
-        this.window.webContents.send('listen-to-window-move', x, y);
+        this.window.webContents.send('arc:listen-to-window-move', x, y);
     }
 }
 
-const tools = {};
+const activeTools = fs.readFileSync(__dirname + '/tools.config', 'utf8').split('\n').map(line => { line = line.trim(); return line.charAt(0) === "#"? null: line } ).filter(Boolean);
 
-app.whenReady().then(() => {
+(async function () {
 
-    tools.clipboardManager = new Tool('clipboard');
+    if(/* some config option to toggle dynamic/fluent themes */true) {
+        const { getWallpaper } = await import('wallpaper');
 
-    globalShortcut.register('Alt+v', () => {
-        tools.clipboardManager.toggleWindow();
-    });
+        ipcMain.handle('arc:get-wallpaper', async () => {
+            try {
+                const wallpaper = await getWallpaper();
+                return wallpaper;
+            } catch (error) {
+                console.error('Failed to get wallpaper:', error);
+                throw error;
+            }
+        });
+    }
 
-    globalShortcut.register('Alt+.', () => {
-        tools.clipboardManager.toggleWindow();
-    });
+    function getWindow(event){
+        const window = BrowserWindow.fromWebContents(event.sender);
+        return window || null
+    }
 
-});
-
-(async function iHateESM () {
-    const { getWallpaper } = await import('wallpaper');
-
-    ipcMain.handle('get-wallpaper', async () => {
-        try {
-            const wallpaper = await getWallpaper();
-            return wallpaper;
-        } catch (error) {
-            console.error('Failed to get wallpaper:', error);
-            throw error;
-        }
-    });
-
-    ipcMain.handle('get-position', event => {
+    ipcMain.handle('arc:get-position', event => {
         event.sender._parent.reportPosition();
     })
 
-    ipcMain.on('toggle-window', event => {
-        event.sender._parent.toggleWindow();
+    ipcMain.on('arc:toggle-window', event => {
+        const window = getWindow(event);
+
+        if (window.isVisible()) {
+            window.hide();
+        } else {
+            window.show();
+            window.focus();
+            window.webContents.send('focus');
+        }
     })
 
-    ipcMain.on('close-window', event => {
-        event.sender._parent.hide();
+    ipcMain.on('arc:hide-window', event => {
+        getWindow(event)?.hide();
     })
+
+    ipcMain.on('arc:show-window', event => {
+        getWindow(event)?.show();
+    })
+
+    ipcMain.on('arc:register-shortcut', (event, shortcut) => {
+        if (globalShortcut.isRegistered(shortcut)) {
+            console.log(`Shortcut ${shortcut} is already registered.`);
+            return;
+        }
+
+        globalShortcut.register(shortcut, () => {
+            event.sender._parent.window.webContents.send('arc:handle-shortcut', shortcut);
+        });
+
+        console.log(`Registered shortcut: ${shortcut}`);
+    });
+
+    app.whenReady().then(() => {
+
+        for (const tool of activeTools) {
+            new ApplicationContext(tool);
+        }
+
+    });
+
 })();
 
 app.on('will-quit', () => {

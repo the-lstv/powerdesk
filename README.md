@@ -39,3 +39,9 @@ Inspired by the Win+V clipboard manager in Windows.
 ![Clipboard Manager](misc/screenshots/clipboard.png)
 
 <!-- Hello world! -->
+
+
+## 20-20-20 Reminder
+A simple reminder that shows up every 20 minutes, reminding you to look away from the screen for 20 seconds and focus on something 20 feet away to help reduce eye strain.
+
+![20-20-20 Reminder Sceeenshot](misc/screenshots/twenty.png)

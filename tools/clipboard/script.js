@@ -11,7 +11,14 @@ const { clipboard } = require('electron');
 
 clipboardEvent.startListening();
 
-ipcRenderer.on('focus', (event, x, y) => {
+arc.registerShortcut('Alt+v');
+arc.registerShortcut('Alt+.');
+
+arc.on('handle-shortcut', (event, shortcut) => {
+    arc.window.toggle();
+});
+
+arc.on('focus', (event, x, y) => {
     const item = clipboardHistory.children[0];
 
     if(item){
@@ -40,7 +47,7 @@ document.addEventListener("keydown", function (event) {
 });
 
 window.addEventListener("blur", () => {
-    ipcRenderer.send('close-window');
+    arc.window.hide();
 });
 
 const clipboardItems = [];
@@ -85,7 +92,7 @@ clipboardEvent.on('change', () => {
                     timeout: 1500
                 });
 
-                ipcRenderer.send('close-window');
+                arc.window.hide();
                 paste();
             }
         }),
@@ -165,7 +172,6 @@ function clearAll(){
     clipboardItems.length = 0;
     clipboardHistory.innerHTML = "";
 }
-
 
 function paste() {
     if (process.platform === "linux") {

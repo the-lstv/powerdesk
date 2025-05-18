@@ -1,50 +1,82 @@
+// TODO: Make major changes
 const { ipcRenderer } = require('electron');
-const wrapperElement = document.getElementById('wrapper');
 
+const arc = {
+    window: {
+        hide(){
+            ipcRenderer.send("arc:hide-window");
+        },
 
-LS.Color.autoScheme()
+        show(){
+            ipcRenderer.send("arc:show-window");
+        },
 
+        toggle(){
+            ipcRenderer.send("arc:toggle-window");
+        }
+    },
+    
+    registerShortcut(shortcut){
+        ipcRenderer.send("arc:register-shortcut", shortcut);
+    },
 
-let wallpaper = null;
-async function getWallpaper() {
-    return await ipcRenderer.invoke('get-wallpaper');
+    on(event, callback){
+        return ipcRenderer.on("arc:" + event, callback);
+    },
+    
+    async getWallpaper() {
+        if(arc._wallpaperCache) return arc._wallpaperCache;
+
+        const wallpaper = await ipcRenderer.invoke('arc:get-wallpaper');
+
+        if(wallpaper) arc._wallpaperCache = wallpaper;
+
+        return wallpaper;
+    },
+
+    /**
+     * @experimental
+     */
+    async enableAcrylicWindow(){
+        const wrapperElement = document.getElementById('wrapper');
+
+        if(!wrapperElement) throw new Error('Cant enable acrylic window, #wrapper element not found');
+    
+        const wallpaper = await arc.getWallpaper();
+    
+        wrapperElement.style.backgroundImage = `url(${wallpaper})`;
+        wrapperElement.classList.add('acrylic');
+    
+        ipcRenderer.invoke('arc:get-position');
+    
+        ipcRenderer.on('arc:listen-to-window-move', (event, x, y) => {
+            wrapperElement.style.backgroundPosition = `${-(x - screen.availLeft)}px ${-(y - screen.availTop)}px`;
+            wrapperElement.style.backgroundSize = `${screen.width}px ${screen.height}px`;
+        });
+    },
+
+    /**
+     * @experimental
+     */
+    async enableDynamicColor(){
+        const wallpaper = await arc.getWallpaper();
+
+        const img = new Image();
+        img.src = wallpaper;
+
+        img.onload = function(){
+            const color = LS.Color.fromImage(img);
+    
+            LS.Color.update("dynamic", color);
+            LS.Color.setAccent("dynamic");
+        }
+    }
 }
 
-LS.Color.update("dynamic");
-
-async function enableAcrylicWindow(){
-    if(!wrapperElement) return console.error('Cant enable acrylic window, Wrapper element not found');
-
-    if(!wallpaper){
-        wallpaper = await getWallpaper();
-    }
-
-    wrapperElement.style.backgroundImage = `url(${wallpaper})`;
-    wrapperElement.classList.add('acrylic');
-
-    ipcRenderer.invoke('get-position');
-
-    ipcRenderer.on('listen-to-window-move', (event, x, y) => {
-        wrapperElement.style.backgroundPosition = `${-(x - screen.availLeft)}px ${-(y - screen.availTop)}px`;
-        wrapperElement.style.backgroundSize = `${screen.width}px ${screen.height}px`;
-    });
+if(window.LS) {
+    LS.Color.autoScheme();
+    LS.Color.update("dynamic");
 }
 
-async function enableDynamicColor(){
-    if(!wallpaper){
-        wallpaper = await getWallpaper();
-    }
-
-    const img = new Image();
-    img.src = wallpaper;
-
-    img.onload = function(){
-        const color = LS.Color.fromImage(img);
-
-        LS.Color.update("dynamic", color);
-        LS.Color.setAccent("dynamic");
-    }
-}
-
-// enableDynamicColor()
-// enableAcrylicWindow()
+// arc.enableDynamicColor()
+// arc.enableAcrylicWindow()
