@@ -36,7 +36,15 @@ A simple and elegant clipboard manager, opens with Alt+V, ability to save to dis
 
 Inspired by the Win+V clipboard manager in Windows.
 
-![Clipboard Manager](misc/screenshots/clipboard.png)
+<img width="310" height="430" alt="Screenshot from 2025-07-10 20-41-54" src="https://github.com/user-attachments/assets/5243fdec-00c4-4ea7-a15c-e68b4a39009d" />
+
+
+## Emoji picker
+An emoji picker with categories and search.
+
+<img width="308" height="425" alt="Screenshot from 2025-07-10 20-34-37" src="https://github.com/user-attachments/assets/d4c74473-8e01-454c-aee8-2b5ab3444250" />
+
+
 
 <!-- Hello world! -->
 
