@@ -1,82 +1,198 @@
-// TODO: Make major changes
-const { ipcRenderer } = require('electron');
+(() => {
+    // TODO: Make major changes
+    const { ipcRenderer } = require('electron');
 
-const arc = {
-    window: {
-        hide(){
-            ipcRenderer.send("arc:hide-window");
-        },
-
-        show(){
-            ipcRenderer.send("arc:show-window");
-        },
-
-        toggle(){
-            ipcRenderer.send("arc:toggle-window");
+    class EventContext {
+        constructor(name) {
+            this.name = name;
         }
-    },
     
-    registerShortcut(shortcut){
-        ipcRenderer.send("arc:register-shortcut", shortcut);
-    },
-
-    on(event, callback){
-        return ipcRenderer.on("arc:" + event, callback);
-    },
+        eventContext(name){
+            return new EventContext(this.name + ":" + name);
+        }
     
-    async getWallpaper() {
-        if(arc._wallpaperCache) return arc._wallpaperCache;
-
-        const wallpaper = await ipcRenderer.invoke('arc:get-wallpaper');
-
-        if(wallpaper) arc._wallpaperCache = wallpaper;
-
-        return wallpaper;
-    },
-
-    /**
-     * @experimental
-     */
-    async enableAcrylicWindow(){
-        const wrapperElement = document.getElementById('wrapper');
-
-        if(!wrapperElement) throw new Error('Cant enable acrylic window, #wrapper element not found');
+        emit(event, ...args){
+            return ipcRenderer.send(this.name + ":" + event, ...args);
+        }
     
-        const wallpaper = await arc.getWallpaper();
+        invoke(event, ...args){
+            return ipcRenderer.invoke(this.name + ":" + event, ...args);
+        }
     
-        wrapperElement.style.backgroundImage = `url(${wallpaper})`;
-        wrapperElement.classList.add('acrylic');
+        on(event, callback){
+            return ipcRenderer.on(this.name + ":" + event, callback)
+        }
     
-        ipcRenderer.invoke('arc:get-position');
-    
-        ipcRenderer.on('arc:listen-to-window-move', (event, x, y) => {
-            wrapperElement.style.backgroundPosition = `${-(x - screen.availLeft)}px ${-(y - screen.availTop)}px`;
-            wrapperElement.style.backgroundSize = `${screen.width}px ${screen.height}px`;
-        });
-    },
-
-    /**
-     * @experimental
-     */
-    async enableDynamicColor(){
-        const wallpaper = await arc.getWallpaper();
-
-        const img = new Image();
-        img.src = wallpaper;
-
-        img.onload = function(){
-            const color = LS.Color.fromImage(img);
-    
-            LS.Color.update("dynamic", color);
-            LS.Color.setAccent("dynamic");
+        toggleDevTools(){
+            return this.emit("toggle-devtools");
         }
     }
-}
 
-if(window.LS) {
-    LS.Color.autoScheme();
-    LS.Color.update("dynamic");
-}
+    class ArcContext extends EventContext {
+        constructor(){
+            super("arc");
+        }
+    
+        toggleDevTools(){
+            return arc.emit("window:toggle-devtools");
+        }
+    
+        async getWallpaper() {
+            // if(arc._wallpaperCache) return arc._wallpaperCache;
+    
+            const wallpaper = await ipcRenderer.invoke('arc:get-wallpaper');
+    
+            // if(wallpaper) arc._wallpaperCache = wallpaper;
+    
+            return wallpaper;
+        }
+    
+        /**
+         * @experimental
+         */
+        async enableAcrylicWindow(){
+            if (document.readyState !== 'complete') {
+                await arc.waitForDocumentReady;
+            }
+    
+            const wrapperElement = document.getElementById('wrapper');
+    
+            if(!wrapperElement) throw new Error('Cant enable acrylic window, #wrapper element not found');
+        
+            const wallpaper = await arc.getWallpaper();
+    
+            wrapperElement.style.backgroundImage = `url(${wallpaper})`;
+            wrapperElement.classList.add('acrylic');
+        
+            ipcRenderer.on('arc:window-move', (event, x, y) => {
+                wrapperElement.style.backgroundPosition = `${-(x - screen.availLeft)}px ${-(y - screen.availTop)}px`;
+                wrapperElement.style.backgroundSize = `${screen.width}px ${screen.height}px`;
+            });
+    
+            ipcRenderer.invoke('arc:get-position');
+        }
+    
+        /**
+         * @experimental
+         */
+        async enableDynamicColor(){
+            const wallpaper = await arc.getWallpaper();
+    
+            const img = new Image();
+            img.src = wallpaper;
+    
+            img.onload = function(){
+                const color = LS.Color.fromImage(img);
+        
+                LS.Color.update("dynamic", color);
+                LS.Color.setAccent("dynamic");
+            }
+        }
+    
+        registerShortcut(shortcut, callback = null){
+            if(callback){
+                ipcRenderer.on("arc:handle-shortcut", (event, shortcut) => {
+                    if(shortcut === shortcut) callback();
+                });
+            }
+    
+            arc.emit("register-shortcut", shortcut);
+        }
+    }
+    
+    const arc = {
+        name: "arc",
+    
+        waitForDocumentReady: new Promise(resolve => window.addEventListener('load', resolve)),
+    
+        window: new class ArcWindow extends EventContext {
+            constructor(){
+                super("arc:window");
+            }
 
-// arc.enableDynamicColor()
-// arc.enableAcrylicWindow()
+            hide(){
+                this.emit("hide");
+            }
+    
+            show(){
+                this.emit("show");
+            }
+    
+            focus(){
+                this.emit("focus");
+            }
+    
+            blur(){
+                this.emit("blur");
+            }
+    
+            close(){
+                this.emit("close");
+            }
+
+            minimize(){
+                this.emit("minimize");
+            }
+    
+            maximize(){
+                this.emit("maximize");
+            }
+    
+            unmaximize(){
+                this.emit("unmaximize");
+            }
+    
+            maximizeToggle(){
+                this.emit("maximize-toggle");
+            }
+    
+            toggle(){
+                this.emit("toggle");
+            }
+    
+            resize(width, height){
+                this.emit("resize", width, height);
+            }
+
+            move(x, y){
+                this.emit("move", x || 0, y || 0);
+            }
+    
+            moveBy(x, y){
+                this.emit("move-by", x || 0, y || 0);
+            }
+    
+            getPosition(){
+                return this.invoke("get-position");
+            }
+
+            setIgnoreMouseEvents(boolean = true){
+                this.emit("set-ignore-mouse-events", !!boolean);
+            }
+
+            setAlwaysOnTop(boolean = true, type){
+                this.emit("set-always-on-top", !!boolean, type);
+            }
+        }
+    }
+
+    arc.window.__proto__.makeClickThrough = arc.window.__proto__.setIgnoreMouseEvents;
+    
+    Object.setPrototypeOf(arc, ArcContext.prototype);
+    
+    if(window.LS) {
+        LS.Color.autoScheme();
+        LS.Color.update("dynamic");
+    }
+    
+    // arc.enableDynamicColor()
+    // arc.enableAcrylicWindow()
+
+    if (typeof module !== "undefined" && module.exports) {
+        module.exports = arc;
+    }
+    
+    if (typeof window !== "undefined") {
+        window.arc = arc;
+    }
+})();

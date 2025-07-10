@@ -2,6 +2,7 @@
   "dependencies": {
     "@node-rs/xxhash": "^1.7.6",
     "clipboard-event": "^1.6.0",
+    "dbus-next": "^0.10.2",
     "electron": "^34.1.0",
     "wallpaper": "^7.2.1"
   },

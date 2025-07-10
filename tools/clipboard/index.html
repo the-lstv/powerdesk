@@ -8,6 +8,7 @@
     <!-- Base -->
     <link rel="stylesheet" href="../../assets/css/base.css">
     <script defer src="../../assets/js/base.js"></script>
+    <link rel="stylesheet" href="../../assets/icons/index.css">
 
     <!-- Own resources -->
     <link rel="stylesheet" href="style.css">
@@ -29,8 +30,8 @@
                     <div></div>
                 </div>
 
-                <div id="content">
-                    <ls-tab id="clipboardManager">
+                <ls-tabs id="content">
+                    <ls-tab id="clipboardManager" tab-title="<i class='bi-clipboard'></i>">
                         <ls-div class="buttons">
                             <h3 class="title">Clipboard</h3>
                             <button class="elevated pill" onclick="clearAll()">Clear all</button>
@@ -38,7 +39,100 @@
 
                         <div id="clipboardHistory"></div>
                     </ls-tab>
-                </div>
+
+                    <ls-tab id="emojiPicker" tab-title="<i class='bi-emoji-smile'></i>">
+                        <ls-div class="buttons">
+                            <h3 class="title">Emoji</h3>
+                            <input type="text" id="emojiSearch" placeholder="Search emoji...">
+                        </ls-div>
+
+                        <ls-div id="emojiCategories"></ls-div>
+
+                        <div id="emojiList"></div>
+                        
+                        <!-- Temporary hardcoded list because i am lazy -->
+                        <script>
+                            const emojiList = document.getElementById('emojiList');
+                            const emojiCategoriesContainer = document.getElementById('emojiCategories');
+
+                            const emojiCategories = require('./emojis.json');
+
+                            emojiCategories.forEach(category => {
+
+                                category.containerElement = N("div", {
+                                    class: "emoji-category",
+                                    id: "category-" + category.slug
+                                });
+
+                                category.titleElement = N("h3", {
+                                    class: "category-title",
+                                    textContent: category.name
+                                });
+
+                                emojiCategoriesContainer.appendChild(N("button", {
+                                    class: "category-button",
+                                    inner: N("i", { class: "bi-" + category.icon }),
+                                    onclick: () => {
+                                        category.containerElement.scrollIntoView({ behavior: "smooth", block: "start" });
+                                    }
+                                }));
+
+                                category.containerElement.appendChild(category.titleElement);
+                                emojiList.appendChild(category.containerElement);
+
+                                category.emojis.forEach(emoji => {
+                                    const button = N("button", {
+                                        class: "emoji circle",
+                                        textContent: emoji.emoji,
+                                        onclick: () => copyPaste(emoji.emoji),
+                                        title: emoji.name
+                                    });
+
+                                    emoji.element = button;
+                                    emoji.searchTag = emoji.slug.toLowerCase().replace(/[^a-z0-9]/g, '');
+                                    category.containerElement.appendChild(button);
+                                });
+
+                            });
+
+                            function searchEmoji(query) {
+                                query = query.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+                                emojiCategories.forEach(category => {
+                                    let resultCount = 0;
+
+                                    category.emojis.forEach(emoji => {
+                                        if (emoji.searchTag.includes(query)) {
+                                            emoji.element.style.display = "inline-block";
+                                            resultCount++;
+                                        } else {
+                                            emoji.element.style.display = "none";
+                                        }
+                                    });
+
+                                    if (resultCount > 0) {
+                                        category.titleElement.style.display = "block";
+                                    } else {
+                                        category.titleElement.style.display = "none";
+                                    }
+                                });
+                            }
+
+                            // Add event listener for emoji search input
+                            document.getElementById('emojiSearch').addEventListener('input', (event) => {
+                                searchEmoji(event.target.value);
+                            });
+                        </script>
+                    </ls-tab>
+
+                    <ls-tab tab-title="<i class='bi-file-earmark-lock'></i>" id="lockedFoldersTab">
+                        <ls-div class="buttons">
+                            <h3 class="title">Locked folders</h3>
+                        </ls-div>
+
+                        <div id="lockedFolders"></div>
+                    </ls-tab>
+                </ls-tabs>
             </div>
         </div>
 

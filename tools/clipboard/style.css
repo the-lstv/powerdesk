@@ -46,3 +46,77 @@
     height: 100%;
     gap: 8px;
 }
+
+#content ls-tab {
+    height: 100%;
+    display: none;
+    flex-direction: column;
+}
+
+#content ls-tab.tab-active {
+    display: flex;
+}
+
+#content {
+    flex: 1;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+}
+
+.ls-tabs-content {
+    position: absolute;
+    top: 50px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.emoji {
+    font-size: 17px;
+    cursor: pointer;
+    padding: 5px;
+}
+
+#emojiList .emoji-category {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 10px;
+}
+
+#emojiList {
+    overflow: auto;
+}
+
+#lockedFolders {
+    padding: 10px;
+}
+
+#lockedFolders button {
+    margin-right: 10px;
+    margin-bottom: 10px;
+}
+
+.buttons input {
+    width: 100%;
+    margin-right: 10px;
+}
+
+.category-title {
+    width: 100%;
+}
+
+#emojiCategories {
+    display: flex;
+    overflow-x: overlay;
+    gap: 10px;
+    padding: 10px;
+    padding-top: 4px;
+    margin: 0;
+    flex-shrink: 0;
+}
+
+.category-title {
+    margin-top: 5px;
+}

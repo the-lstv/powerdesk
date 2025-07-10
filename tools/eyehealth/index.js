@@ -11,11 +11,13 @@ module.exports = (instance) => {
         show: false,
         minimizable: false,
         maximizable: false,
-        persistent: false,
+        persistent: true,
 
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false
         }
     })
+
+    twentyRuleWindow.setAlwaysOnTop(true, 'screen-saver');
 }

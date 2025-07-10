@@ -1,2 +1,5 @@
 node_modules
 package-lock.json
+
+tools/desktop_test
+tools/clipboard/folders.json

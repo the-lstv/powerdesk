@@ -1,10 +1,13 @@
 const { exec } = require("child_process");
 const { xxh3 } = require("@node-rs/xxhash");
+const fs = require("fs");
 
 const mainElement = document.getElementById('main');
 const clipboardHistory = document.getElementById('clipboardHistory');
 
-const tabs = new LS.Tabs(document.getElementById('content'), { list: false, unstyled: true });
+const tabs = new LS.Tabs(document.getElementById('content'), { list: true });
+
+tabs.set(0);
 
 const clipboardEvent = require('clipboard-event');
 const { clipboard } = require('electron');
@@ -183,6 +186,12 @@ function paste() {
     }
 }
 
+function copyPaste(text) {
+    clipboard.writeText(text);
+    arc.window.hide();
+    paste();
+}
+
 // Windows ¯\_(ツ)_/¯
 // if(process.platform === "win32"){
 //     const ffi = require("ffi-napi");
@@ -205,3 +214,22 @@ function paste() {
 //         user32.keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0);
 //     }
 // }
+
+if(fs.existsSync(__dirname + '/folders.json')) {
+    const lockedFolders = document.getElementById('lockedFolders');
+
+    const folders = require('./folders.json');
+
+    folders.forEach(folder => {
+        const button = N("button", {
+            class: "pill",
+            textContent: folder.name,
+            accent: folder.color || "blue",
+            onclick: () => exec(`gocryptfs ${folder.path}/${folder.cipherFolder || "cipher"}/ ${folder.path}/${folder.plainFolder || "plain"}/ -extpass 'zenity --password'`)
+        });
+
+        lockedFolders.appendChild(button);
+    });
+} else {
+    tabs.remove("lockedFoldersTab");
+}
