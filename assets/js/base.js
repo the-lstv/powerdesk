@@ -91,8 +91,8 @@
     
         registerShortcut(shortcut, callback = null){
             if(callback){
-                ipcRenderer.on("arc:handle-shortcut", (event, shortcut) => {
-                    if(shortcut === shortcut) callback();
+                ipcRenderer.on("arc:handle-shortcut", (event, sentShortcut) => {
+                    if(sentShortcut === shortcut) callback();
                 });
             }
     

@@ -4,7 +4,7 @@
 
     Last modified: 2025
     License: GPL-3.0
-    Version: 5.1.0
+    Version: 5.1.1
     See: https://github.com/thelstv/LS
 */
 
@@ -30,8 +30,6 @@
             position: "fixed"
         }});
 
-        LS._topLayerInherit = function () { console.error("LS._topLayerInherit is deprecated and no longer serves any purpose, you can safely remove it from your code.") }
-
         function bodyAvailable(){
             document.body.append(LS._topLayer)
             LS._events.completed("body-available")
@@ -44,9 +42,146 @@
 
 })(() => {
 
+    class EventHandler {
+        constructor(target){
+            LS.EventHandler.prepareHandler(this);
+
+            if(target){
+                target._events = this;
+
+                ["emit", "on", "once", "off", "invoke"].forEach(method => {
+                    if (!target.hasOwnProperty(method)) target[method] = this[method].bind(this);
+                });
+
+                this.target = target;
+            }
+        }
+
+        static prepareHandler(target){
+            target.events = new Map;
+        }
+
+        prepareEvent(name, options){
+            if(!this.events.has(name)){
+                this.events.set(name, { listeners: [], empty: [], ...options, _isEvent: true })
+            } else if(options){
+                Object.assign(this.events.get(name), options)
+            }
+
+            return this.events.get(name)
+        }
+
+        on(name, callback, options){
+            const event = (name._isEvent? name: this.events.get(name)) || this.prepareEvent(name);
+            if(event.completed) return callback();
+
+            const index = event.empty.length > 0 ? event.empty.pop() : event.listeners.length;
+
+            event.listeners[index] = { callback, index, ...options }
+            return this
+        }
+
+        off(name, callback){
+            const event = name._isEvent? name: this.events.get(name);
+            if(!event) return;
+
+            for(let i = 0; i < event.listeners.length; i++){
+                if(event.listeners[i].callback === callback) {
+                    event.empty.push(i)
+                    event.listeners[i] = null
+                }
+            }
+
+            return this
+        }
+
+        once(name, callback, options){
+            return this.on(name, callback, Object.assign(options || {}, { once: true }))
+        }
+
+        /**
+         * @deprecated
+        */
+        invoke(name, ...data){
+            return this.emit(name, data, { results: true })
+        }
+
+        /**
+         * Emit an event with the given name and data.
+         * @param {string|object} name Name of the event or an event object.
+         * @param {Array} data Data to pass to the event listeners.
+         * @param {object} options Options for the event emission.
+         * @returns {Array|null} Returns an array of results or null.
+         */
+
+        emit(name, data, options = {}){
+            if(!name) return;
+
+            const event = name._isEvent? name: this.events.get(name);
+
+            const returnData = options.results? []: null;
+            if(!event) return returnData;
+
+            const hasData = Array.isArray(data) && data.length > 0;
+
+            for(let listener of event.listeners){
+                if(!listener || typeof listener.callback !== "function") continue;
+
+                try {
+                    const result = hasData? listener.callback(...data): listener.callback();
+
+                    if(options.break && result === false) break;
+                    if(options.results) returnData.push(result);
+                } catch (error) {
+                    console.error(`Error in listener for event '${name}':`, listener, error);
+                }
+
+                if(listener.once) {
+                    event.empty.push(listener.index);
+                    event.listeners[listener.index] = null;
+                    listener = null;
+                }
+            }
+
+            return returnData
+        }
+
+        quickEmit(event, data){
+            if(!event._isEvent) throw new Error("Event must be a valid event object when using quickEmit");
+
+            for(let i = 0, len = event.listeners.length; i < len; i++){
+                const listener = event.listeners[i];
+                if(!listener || typeof listener.callback !== "function") continue;
+
+                if(listener.once) {
+                    event.empty.push(listener.index);
+                    event.listeners[listener.index] = null;
+                }
+
+                listener.callback(...data);
+            }
+        }
+
+        flush() {
+            this.events.clear();
+        }
+
+        alias(name, alias){
+            this.events.set(alias, this.prepareEvent(name))
+        }
+
+        completed(name){
+            this.emit(name)
+
+            this.prepareEvent(name, {
+                completed: true
+            })
+        }
+    }
+
     const LS = {
         isWeb: typeof window !== 'undefined',
-        version: "5.1.0",
+        version: "5.1.1",
         v: 5,
 
         init(options = {}){
@@ -70,123 +205,7 @@
 
         components: new Map,
 
-        EventHandler: class EventHandler {
-            constructor(target, options = {}){
-                this.events = new Map;
-                this.options = options;
-
-                if(target){
-                    target._events = this;
-
-                    ["emit", "on", "once", "off", "invoke"].forEach(method => {
-                        if (!target.hasOwnProperty(method)) target[method] = this[method].bind(this);
-                    });
-
-                    this.target = target;
-                }
-            }
-
-            prepare(name, options){
-                if(!this.events.has(name)){
-                    this.events.set(name, { listeners: [], empty: [], ...options, _isEvent: true })
-                } else if(options){
-                    Object.assign(this.events.get(name), options)
-                }
-
-                return this.events.get(name)
-            }
-
-            on(name, callback, options){
-                const event = (name._isEvent? name: this.events.get(name)) || this.prepare(name);
-                if(event.completed) return callback();
-
-                const index = event.empty.length > 0 ? event.empty.pop() : event.listeners.length;
-
-                event.listeners[index] = { callback, index, ...options }
-                return this
-            }
-
-            off(name, callback){
-                const event = name._isEvent? name: this.events.get(name);
-                if(!event) return;
-
-                for(let i = 0; i < event.listeners.length; i++){
-                    if(event.listeners[i].callback === callback) {
-                        event.empty.push(i)
-                        event.listeners[i] = null
-                    }
-                }
-
-                return this
-            }
-
-            once(name, callback, options){
-                return this.on(name, callback, Object.assign(options || {}, { once: true }))
-            }
-
-            /**
-             * @deprecated
-            */
-            invoke(name, ...data){
-                return this.emit(name, data, { results: true })
-            }
-
-            emit(name, data, options = {}){
-                if(!name) return;
-
-                const event = name._isEvent? name: this.events.get(name);
-
-                const returnData = options.results? []: null;
-                if(!event) return returnData;
-
-                const hasData = Array.isArray(data) && data.length > 0;
-
-                for(let listener of event.listeners){
-                    if(!listener || typeof listener.callback !== "function") continue;
-
-                    try {
-                        const result = hasData? listener.callback(...data): listener.callback();
-
-                        if(options.break && result === false) break;
-                        if(options.results) returnData.push(result);
-                    } catch (error) {
-                        console.error(`Error in listener for event '${name}':`, listener, error);
-                    }
-
-                    if(listener.once) {
-                        event.empty.push(listener.index);
-                        event.listeners[listener.index] = null;
-                        listener = null;
-                    }
-                }
-
-                return returnData
-            }
-
-            rapidFire(event, data){
-                if(!event._isEvent) throw new Error("Event must be a valid event object when using rapidFire");
-
-                for(let i = 0; i < event.listeners.length; i++){
-                    event.listeners[i].callback(data);
-                }
-            }
-
-            flush() {
-                this.events.clear();
-            }
-
-            alias(name, alias){
-                this.events.set(alias, this.prepare(name))
-            }
-
-            completed(name){
-                this.emit(name)
-
-                this.prepare(name, {
-                    completed: true
-                })
-            }
-        },
+        EventHandler,
 
         TinyWrap(elements){
             if(!elements) return null;
@@ -211,12 +230,12 @@
 
         Tiny: {
             /**
-             * @description Element selector utility
+             * Element selector utility
              */
             Q(selector, subSelector, one = false) {
                 if(!selector) return LS.TinyWrap(one? null: []);
 
-                const isElement = selector instanceof HTMLElement;
+                const isElement = selector instanceof Element;
                 const target = (isElement? selector : document);
 
                 if(isElement && !subSelector) return LS.TinyWrap(one? selector: [selector]);
@@ -224,20 +243,20 @@
                 const actualSelector = isElement? subSelector || "*" : selector || '*';
 
                 let elements = one? target.querySelector(actualSelector): target.querySelectorAll(actualSelector);
-                
-                return LS.TinyWrap(one? elements: [...elements]);
+
+                return LS.Tiny._prototyped? elements: LS.TinyWrap(one? elements: [...elements]);
             },
 
             /**
-             * @description Single element selector
+             * Single element selector
              */
             O(selector, subSelector){
-                if(!selector) return LS.TinyWrap(document.body);
+                if(!selector) selector = document.body;
                 return LS.Tiny.Q(selector, subSelector, true)
             },
 
             /**
-             * @description Element builder utility
+             * Element builder utility
              */
             N(tagName = "div", content){
                 if(typeof tagName !== "string"){
@@ -245,15 +264,21 @@
                     tagName = "div";
                 }
 
+                if(!content) return document.createElement(tagName);
+
                 content =
-                    typeof content === "string" 
-                        ? { innerHTML: content } 
-                        : Array.isArray(content) 
-                            ? { inner: content } 
+                    typeof content === "string"
+                        ? { innerHTML: content }
+                        : Array.isArray(content)
+                            ? { inner: content }
                             : content || {};
 
+                if(tagName === "svg" && !content.hasOwnProperty("ns")) {
+                    content.ns = "http://www.w3.org/2000/svg";
+                }
 
-                const { class: className, tooltip, ns, accent, attr, style, inner, content: innerContent, ...rest } = content;
+                const { class: className, tooltip, ns, accent, style, inner, content: innerContent, reactive, ...rest } = content;
+
 
                 const element = Object.assign(
                     ns ? document.createElementNS(ns, tagName) : document.createElement(tagName),
@@ -262,19 +287,28 @@
 
                 // Handle attributes
                 if (accent) LS.TinyFactory.attrAssign.call(element, { "ls-accent": accent });
-                if (attr) LS.TinyFactory.attrAssign.call(element, attr);
+                if (content.attr || content.attributes) LS.TinyFactory.attrAssign.call(element, content.attr || content.attributes);
 
                 // Handle tooltips
                 if (tooltip) {
                     if (!LS.Tooltips) {
-                        element.attrAssign({ title: tooltip });
+                        element.setAttribute("title", tooltip);
                     } else {
-                        element.attrAssign({ "ls-tooltip": tooltip });
+                        element.setAttribute("ls-tooltip", tooltip);
                         LS.Tooltips.addElements([{ target: element, attributeName: "ls-tooltip" }]);
                     }
                 }
 
-                if (className && element.class) LS.TinyFactory.class.call(element, className);
+                // Handle reactive bindings
+                if (reactive) {
+                    if (!LS.Reactive) {
+                        console.warn("Reactive bindings are not available, please include the Reactive module to use this feature.");
+                    }
+
+                    LS.Reactive.bindElement(element, reactive);
+                }
+
+                if (className) LS.TinyFactory.class.call(element, className);
                 if (typeof style === "object") LS.TinyFactory.applyStyle.call(element, style);
 
                 // Append children or content
@@ -285,7 +319,7 @@
             },
 
             /**
-             * @description Color utilities
+             * Color utilities
              */
             C(r, g, b, a = 1){
                 return new LS.Color(r, g, b, a)
@@ -323,58 +357,73 @@
                     return LS.Tiny.M.GlobalID + "-" + crypto.getRandomValues(new Uint32Array(1))[0].toString(36)
                 },
 
-                Style(url, callback) {
+                LoadStyle(href, callback) {
                     return new Promise((resolve, reject) => {
                         const linkElement = N("link", {
                             rel: "stylesheet",
-                            href: url,
+                            href,
+
                             onload() {
-                                if (callback) callback(null);
+                                if (typeof callback === "function") callback(null);
                                 resolve();
                             },
+
                             onerror(error) {
                                 const errorMsg = error.toString();
-                                if (callback) callback(errorMsg);
+                                if (typeof callback === "function") callback(errorMsg);
                                 reject(errorMsg);
                             }
                         });
                 
-                        O("head").appendChild(linkElement);
+                        document.head.appendChild(linkElement);
                     });
                 },
 
-                Script(url, callback) {
+                LoadScript(src, callback) {
                     return new Promise((resolve, reject) => {
                         const scriptElement = N("script", {
-                            src: url,
+                            src,
+
                             onload() {
-                                if (callback) callback(null);
+                                if (typeof callback === "function") callback(null);
                                 resolve();
                             },
+
                             onerror(error) {
                                 const errorMsg = error.toString();
-                                if (callback) callback(errorMsg);
+                                if (typeof callback === "function") callback(errorMsg);
                                 reject(errorMsg);
                             }
                         });
                 
-                        O("head").appendChild(scriptElement);
+                        document.head.appendChild(scriptElement);
                     });
                 },
 
-                async Document(url, callback) {
+                async LoadDocument(url, callback, targetElement = null) {
+                    let data;
+
                     try {
                         const response = await fetch(url);
                         if (!response.ok) throw new Error(`Failed to fetch: ${response.statusText}`);
                         const text = await response.text();
-                        const data = N("div", { innerHTML: text });
 
-                        if (callback) callback(null, data);
-                        return await data;
+                        if (targetElement instanceof Element) {
+                            targetElement.innerHTML = text;
+                            data = targetElement;
+                        } else if (typeof targetElement === "string") {
+                            data = LS.Tiny.N(targetElement, { innerHTML: text });
+                        } else {
+                            const template = document.createElement("template");
+                            template.innerHTML = text;
+                            data = template.content.childNodes;
+                        }
+
+                        if (typeof callback === "function") callback(null, data);
+                        return data;
                     } catch (error) {
-                        const errorMsg = error.toString();
-                        if (callback) callback(errorMsg);
-                        throw errorMsg;
+                        if (typeof callback === "function") callback(error.toString());
+                        throw error;
                     }
                 }
             },
@@ -384,7 +433,7 @@
 
 
         /**
-         * @description TinyFactory (utilities for HTML elements)
+         * TinyFactory (utilities for HTML elements)
          */
         TinyFactory: {
             isElement: true,
@@ -784,8 +833,10 @@
             },
         },
 
-        Component: class {
+        Component: class Component extends EventHandler {
             constructor(){
+                super();
+
                 if(!this._component || !LS.components.has(this._component.name)){
                     throw new Error("This class has to be extended and loaded as a component with LS.LoadComponent.");
                 }
@@ -794,7 +845,9 @@
                     LS.once("init", () => this.init())
                 }
 
-                this._events = new LS.EventHandler(this);
+                // if(this._component.hasEvents) {
+                //     this._events = new LS.EventHandler(this);
+                // }
             }
         },
 
@@ -807,17 +860,29 @@
             }
 
             const component = {
+                isConstructor: typeof componentClass === "function",
                 class: componentClass,
                 metadata: options.metadata,
                 global: !!options.global,
+                hasEvents: options.events !== false,
                 name
             }
 
-            LS.components.set(name, component)
-            componentClass.prototype._component = component;
-            
+            if (!component.isConstructor) {
+                Object.setPrototypeOf(componentClass, LS.Component.prototype);
+                componentClass._component = component;
+
+                if(component.hasEvents) {
+                    LS.EventHandler.prepareHandler(componentClass);
+                }
+            } else {
+                componentClass.prototype._component = component;
+            }
+
+            LS.components.set(name, component);
+
             if(component.global){
-                LS[name] = options.singular? new componentClass: componentClass;
+                LS[name] = options.singular && component.isConstructor? new componentClass: componentClass;
             }
 
             return component
@@ -832,9 +897,10 @@
     LS.SelectAll = LS.Tiny.Q;
     LS.Select = LS.Tiny.O;
     LS.Create = LS.Tiny.N;
+    LS.Misc = LS.Tiny.M;
 
     /**
-     * @description Color and theme utilities
+     * Color and theme utilities
      */
     LS.Color = class {
         constructor(r, g, b, a) {
@@ -910,9 +976,17 @@
                 })
             }
         }
-    
+
+        get int(){
+            return (this.r << 16) | (this.g << 8) | this.b;
+        }
+
+        get hexInt() {
+            return 1 << 24 | this.r << 16 | this.g << 8 | this.b
+        }
+
         get hex() {
-            return "#" + (1 << 24 | this.r << 16 | this.g << 8 | this.b).toString(16).slice(1);
+            return "#" + this.hexInt.toString(16).slice(1);
         }
     
         get rgb() {
@@ -1009,39 +1083,45 @@
             l = Math.max(Math.min(l + percent, 100), 0);
             return LS.Color.fromHSL(h, s, l);
         }
-    
+
+        saturate(percent) {
+            let [h, s, l] = this.hsl;
+            s = Math.max(Math.min(s + percent, 100), 0);
+            return LS.Color.fromHSL(h, s, l);
+        }
+
         darken(percent) {
             let [h, s, l] = this.hsl;
             l = Math.max(Math.min(l - percent, 100), 0);
             return LS.Color.fromHSL(h, s, l);
         }
-    
+
         hueShift(deg) {
             let [h, s, l] = this.hsl;
             h = (h + deg) % 360;
             return LS.Color.fromHSL(h, s, l);
         }
-    
+
         multiply(r2, g2, b2, a2) {
             let color = new LS.Color(r2, g2, b2, a2).color;
             return new LS.Color(this.r * color[0], this.g * color[1], this.b * color[2], this.a * color[3]);
         }
-    
+
         divide(r2, g2, b2, a2) {
             let color = new LS.Color(r2, g2, b2, a2).color;
             return new LS.Color(this.r / color[0], this.g / color[1], this.b / color[2], this.a / color[3]);
         }
-    
+
         add(r2, g2, b2, a2) {
             let color = new LS.Color(r2, g2, b2, a2).color;
             return new LS.Color(this.r + color[0], this.g + color[1], this.b + color[2], this.a + color[3]);
         }
-    
+
         subtract(r2, g2, b2, a2) {
             let color = new LS.Color(r2, g2, b2, a2).color;
             return new LS.Color(this.r - color[0], this.g - color[1], this.b - color[2], this.a - color[3]);
         }
-    
+
         alpha(v) {
             return new LS.Color(this.r, this.g, this.b, v);
         }
@@ -1057,7 +1137,7 @@
                 return [ parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16), hex.length === 9? parseInt(hex.slice(7, 9), 16) / 255: 1 ];
             }
         }
-    
+
         static fromHSL(h, s, l) {
             s /= 100;
             l /= 100;
@@ -1068,7 +1148,7 @@
     
             return new LS.Color(255 * f(0), 255 * f(8), 255 * f(4));
         }
-    
+
         static random() {
             return new LS.Color(Math.floor(Math.random() * 256), Math.floor(Math.random() * 256), Math.floor(Math.random() * 256));
         }
@@ -1084,7 +1164,7 @@
         static set theme(theme){
             this.setTheme(theme)
         }
-        
+
         static get accent(){
             return document.body.getAttribute("ls-accent")
         }
@@ -1097,11 +1177,11 @@
             let color = (r instanceof LS.Color)? r: new LS.Color(r, g, b), style = "";
 
             for(let i of [10, 20, 30, 35, 40, 45, 50, 55, 60, 70, 80, 90, 95]){
-                style += `--accent-${i}:${color.lightness(i).hex};`; 
+                style += `--accent-${i}:${color.lightness(i).hex};`;
             }
 
-            for(let i of [5, 6, 8, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95]){
-                style += `--surface-${i}:${color.tone(null, 12, i).hex};`; 
+            for(let i of [6, 8, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 98]){
+                style += `--base-${i}:${color.tone(null, 12, i).hex};`; 
             }
 
             return style
@@ -1150,18 +1230,18 @@
         }
 
         static setAccent(accent){
-            document.body.setAttribute("ls-accent", accent)
+            document.body.setAttribute("ls-accent", accent);
             return this
         }
 
         static setTheme(theme){
-            document.body.setAttribute("ls-theme", theme)
-            this.emit("theme-changed", [theme])
+            document.body.setAttribute("ls-theme", theme);
+            this.emit("theme-changed", [theme]);
             return this
         }
 
         static setAdaptiveTheme(amoled){
-            LS.Color.setTheme(this.lightModePreffered? "light": amoled? "amoled" : "dark")
+            LS.Color.setTheme(localStorage.getItem("ls-theme") || (this.lightModePreffered? "light": amoled? "amoled" : "dark"));
             return this
         }
 
@@ -1238,35 +1318,6 @@
         }
     }
 
-    // LS.Color.add("navy", 40,28,108);
-    // LS.Color.add("blue", 0,133,255);
-    // LS.Color.add("pastel_indigo", 70,118,181);
-    // LS.Color.add("lapis", 34,114,154);
-    // LS.Color.add("teal", 0,128,128);
-    // LS.Color.add("pastel_teal", 69,195,205);
-    // LS.Color.add("aquamarine", 58,160,125);
-    // LS.Color.add("mint", 106,238,189);
-    // LS.Color.add("green", 25,135,84);
-    // LS.Color.add("lime", 133,210,50);
-    // LS.Color.add("neon", 173,255,110);
-    // LS.Color.add("yellow", 255,236,32);
-    // LS.Color.add("lstv_red", 237,108,48);
-    // LS.Color.add("lstv_yellow", 252,194,27);
-    // LS.Color.add("lstv_blue", 64,192,231);
-    // LS.Color.add("orange", 255,140,32);
-    // LS.Color.add("deep_orange", 255,112,52);
-    // LS.Color.add("red", 245,47,47);
-    // LS.Color.add("rusty_red", 220,53,69);
-    // LS.Color.add("pink", 230,52,164);
-    // LS.Color.add("hotpink", 245,100,169);
-    // LS.Color.add("purple", 155,77,175);
-    // LS.Color.add("soap", 210,190,235);
-    // LS.Color.add("burple", 81,101,246);
-    // LS.Color.add("gray", 73,73,73);
-    // LS.Color.add("gray_light", 107,107,107);
-    // LS.Color.add("white", 225,225,225);
-    // LS.Color.add("black", 16,16,16);
-
     if(LS.isWeb){
         LS.Tiny.M.on("keydown", event => {
             M.lastKey = event.key;
@@ -1286,75 +1337,1057 @@
 
     return LS
 
-});
-LS.LoadComponent(class Toast extends LS.Component {
-    constructor(){
-        super()
+});/**
+ * Animation utilities for LS
+ * @version 1.0.0
+ */
 
-        let container = this.container = N({
-            class: "ls-toast-layer"
-        });
+(() => {
+    const transforms = {
+        up: 'translateY(10px)',
+        down: 'translateY(-10px)',
+        left: 'translateX(10px)',
+        right: 'translateX(-10px)'
+    };
 
-        LS.once("body-available", () => {
-            LS._topLayer.add(container);
-        })
+    LS.LoadComponent({
+        fadeOut(element, duration = 300, direction = null) {
+            duration = duration ?? 300;
+        
+            element.style.transition = `opacity ${duration}ms, transform ${duration}ms`;
+            element.style.opacity = 0;
+            element.style.pointerEvents = 'none';
+            
+            if (direction) {
+                element.style.transform = transforms[direction] || '';
+            }
+        
+            if (element._fadeOutTimeout) clearTimeout(element._fadeOutTimeout);
+            element._fadeOutTimeout = setTimeout(() => {
+                element.style.display = 'none';
+            }, duration);
+        },
+    
+        fadeIn(element, duration = 300, direction = null) {
+            duration = duration ?? 300;
+    
+            element.style.display = '';
+            
+            if (direction) {
+                element.style.transform = transforms[direction] || '';
+            }
+        
+            if (element._fadeOutTimeout) clearTimeout(element._fadeOutTimeout);
+            setTimeout(() => {
+                element.style.transition = `opacity ${duration}ms, transform ${duration}ms`;
+                element.style.opacity = 1;
+                element.style.pointerEvents = 'auto';
+                if (direction) element.style.transform = 'translateY(0) translateX(0)';
+            }, 0);
+        },
+    
+        slideInToggle(newElement, oldElement = null, duration = 300) {
+            if (oldElement) {
+                oldElement.classList.remove('visible');
+                oldElement.classList.add('leaving');
+    
+                if (oldElement._leavingTimeout) clearTimeout(oldElement._leavingTimeout);
+                oldElement._leavingTimeout = setTimeout(() => {
+                    oldElement.classList.remove('leaving');
+                }, duration);
+            }
+    
+            if (newElement._leavingTimeout) clearTimeout(newElement._leavingTimeout);
+            newElement.classList.remove('leaving');
+            newElement.classList.add("visible");
+        },
+
+        transforms
+    }, { name: "Animation", global: true });
+})();/**
+ * GL Utilities for LS
+ * @version 1.0.0
+ */
+
+if(!globalThis.PIXI) {
+    console.error("LS.GL requires PIXI.js to work")
+} else (() => {
+    class GLElement extends PIXI.Container {
+        constructor(options = {}) {
+            super();
+
+            this.graphics = null;
+            this.label = null;
+
+            this.styleContext = (options.style instanceof StyleContext)? options.style: new StyleContext(options.style || {});
+            this.computedStyle = this.styleContext.computedStyle;
+
+            if(options.tooltip){
+                tooltips.set(this, options.tooltip)
+            }
+
+            if(options.inner) {
+                this.add(options.inner);
+            }
+
+            // if (options.onClick) {
+            //     this.on("click", options.onClick);
+            // }
+
+            // if (options.onPointerDown) {
+            //     this.on("pointerdown", options.onPointerDown);
+            // }
+
+            // if (options.onPointerUp) {
+            //     this.on("pointerup", options.onPointerUp);
+            // }
+
+            // if (options.onPointerEnter) {
+            //     this.on("pointerenter", options.onPointerEnter);
+            // }
+
+            // if (options.onPointerLeave) {
+            //     this.on("pointerleave", options.onPointerLeave);
+            // }
+
+            // if (options.onPointerMove) {
+            //     this.on("pointermove", options.onPointerMove);
+            // }
+
+            this.x = options.x || 0;
+            this.y = options.y || 0;
+
+
+            if(options.text) this.setText(options.text); else this.draw();
+        }
+
+        draw() {
+            if(this.computedStyle.display === "block"){
+                if(!this.graphics){
+                    this.graphics = new PIXI.Graphics;
+                    this.addChild(this.graphics);
+                    this.graphics.zIndex = -1;
+                }
+
+                this.graphics.clear();
+
+                const actualX = this.computedStyle.margin[3];
+                const actualY = this.computedStyle.margin[0];
+                const actualWidth = this.width + this.computedStyle.padding[3] + this.computedStyle.padding[1];
+                const actualHeight = this.height + this.computedStyle.padding[0] + this.computedStyle.padding[2];
+
+                const shape = this.computedStyle.borderRadius? this.graphics.roundRect: this.graphics.rect;
+                shape.call(this.graphics, actualX, actualY, actualWidth, actualHeight, this.computedStyle.borderRadius || undefined);
+
+                if(this.computedStyle.background) {
+                    this.graphics.fill(this.computedStyle.background);
+                }
+                
+                if(this.computedStyle.border) {
+                    this.graphics.stroke(this.computedStyle.border);
+                }
+            }
+
+            if(this.computedStyle.overflowHidden && this.parent) {
+                if(!this.overflow_mask){
+                    this.overflow_mask = new PIXI.Sprite(PIXI.Texture.WHITE);
+                    this.addChild(this.overflow_mask);
+                }
+        
+                this.overflow_mask.width = this.computedStyle.clipWidth || actualWidth;
+                this.overflow_mask.height = this.computedStyle.clipHeight || actualHeight;
+
+                this.mask = this.overflow_mask;
+            } else {
+                this.mask = null;
+            }
+
+            this.layout();
+        }
+
+        layout() {
+            let y = 0;
+            for(const child of this.children){
+                if(child !== this.graphics && child !== this.overflow_mask && !(child.style && child.style.position === "absolute")){
+                    const childMargin = child.style && child.style.margin? child.style.margin: [0, 0, 0, 0];
+
+                    y += childMargin[0] || 0;
+                    child.position.set(childMargin[3] + this.computedStyle.padding[3], y + this.computedStyle.padding[0]);
+
+                    y += child.height + (childMargin[2] || 0) + (this.computedStyle.gap || 0);
+                }
+            }
+
+            this.__layoutHeight = y + this.computedStyle.padding[0] + this.computedStyle.padding[2];
+        }
+
+        setText(text) {
+            if(!this.label) {
+                this.label = new PIXI.Text({ text, style: this.styleContext.get("text") });
+                this.addChild(this.label)
+            } else this.label.text = text;
+
+            this.draw();
+        }
+
+        set innerText(text) {
+            this.setText(text)
+        }
+
+        get innerText() {
+            return this.label? this.label.text: ""
+        }
+
+        setTooltip(label) {
+            tooltips.set(this, label)
+            return this
+        }
+
+        removeTooltip() {
+            
+        }
+    
+        add(nodes) {
+            for(let node of Array.isArray(nodes)? nodes: [nodes]){
+                this.addChild(node)
+            }
+            return this
+        }
     }
 
-    closeAll(){
-        this.emit("close-all")
-    }
+    const PADDING_PROPERTIES = ["paddingTop", "paddingRight", "paddingBottom", "paddingLeft"];
+    const MARGIN_PROPERTIES = ["marginTop", "marginRight", "marginBottom", "marginLeft"];
 
-    show(content, options = {}){
-        let toast = N({
-            class: "ls-toast level-0",
-            accent: options.accent || null,
+    class StyleContext {
+        constructor(style = {}, options = {}) {
+            this.computedStyle = {
+                display: "block",
+                position: "static",
+                padding: [0, 0, 0, 0],
+                margin: [0, 0, 0, 0],
+            }
 
-            inner: [
-                options.icon? N("i", {class: options.icon}) : null,
+            this.parent = options.parent || null;
 
-                N({inner: content, class: "ls-toast-content"}),
+            this.mask = style || {};
+            this.compile();
+        }
 
-                !options.uncancellable? N("button", {
-                    class: "elevated circle ls-toast-close",
-                    inner: "&times;",
+        compile(patch) {
+            if(!patch) patch = this.mask; else if (!patch._normalized) {
+                const normalizedPatch = { _normalized: true };
 
-                    onclick(){
-                        methods.close()
+                for (let prop in patch) {
+                    if (!patch.hasOwnProperty(prop)) continue;
+                    normalizedPatch[prop.trim().replace(/-([a-z])/g, (match, letter) => letter.toUpperCase())] = patch[prop];
+                }
+
+                return this.compile(normalizedPatch);
+            } else if (patch._normalized) {
+                delete patch._normalized;
+                this.mask = Object.assign(this.mask, patch);
+            }
+
+            for (let prop in patch) {
+                if (!patch.hasOwnProperty(prop)) continue;
+
+                const value = patch[prop];
+
+                const index_padding = PADDING_PROPERTIES.indexOf(prop);
+                if(index_padding !== -1) {
+                    if(!this.computedStyle.padding) this.computedStyle.padding = [0, 0, 0, 0];
+                    this.computedStyle.padding[index_padding] = parseInt(value) || 0;
+                    continue;
+                }
+
+                const index_margin = MARGIN_PROPERTIES.indexOf(prop);
+                if(index_margin !== -1) {
+                    if(!this.computedStyle.margin) this.computedStyle.margin = [0, 0, 0, 0];
+                    this.computedStyle.margin[index_margin] = parseInt(value) || 0;
+                    continue;
+                }
+
+                this.computedStyle[prop] = value === "inherit" ? this.#normalizeValue(prop) : this.#normalizeValue(prop, value);
+            }
+
+            if (this.parent && this.parent.style) {
+                for (let prop in this.parent.style) {
+                    if (this.parent.style.hasOwnProperty(prop) && !patch.hasOwnProperty(prop)) {
+                        this.computedStyle[prop] = this.#normalizeValue(prop, this.parent.get(prop));
                     }
-                }): null
-            ]
-        })
-
-        let methods = {
-            element: toast,
-
-            update(content){
-                toast.get(".ls-toast-content").set(content)
-            },
-
-            close(){
-                toast.class("open", 0);
-                setTimeout(()=>{
-                    if(!options.keep) toast.remove()
-                }, 150)
+                }
             }
         }
 
-        this.once("close-all", methods.close)
+        #normalizeValue(prop, value = null) {
+            if(!value) value = (this.parent && this.parent.style)? (this.parent.get(prop)): (LS.GL.rootStyle? LS.GL.rootStyle.style[prop]: undefined);
 
-        this.container.add(toast);
+            if((prop === "padding" || prop === "margin" || prop === "borderRadius") && (!Array.isArray(value) || value.length < 4)) {
+                if (typeof value === "string") {
+                    value = value.split(" ").map(v => parseInt(v) || 0);
+                }
 
-        if(options.timeout) setTimeout(()=>{
-            methods.close()
-        }, options.timeout)
-        
-        setTimeout(()=>{
-            toast.class("open")
-        }, 1)
+                if (!Array.isArray(value)) {
+                    value = [value, value, value, value];
+                } else if (value.length === 2) {
+                    value = [value[0], value[1], value[0], value[1]];
+                } else if (value.length === 3) {
+                    value = [value[0], value[1], value[2], value[1]];
+                } else {
+                    while (value.length < 4) {
+                        value.push(value[value.length - 1]);
+                    }
+                }
+            }
 
-        return methods
+            return value;
+        }
+
+        fork(style) {
+            const newStyle = new StyleContext(style, { parent: this });
+            return newStyle;
+        }
+
+        set(prop, value) {
+            if (typeof prop === "object") {
+                this.compile(prop);
+                return this;
+            }
+
+            this.compile({ [prop]: value });
+            return this;
+        }
+
+        /**
+         * @warning Values set with this method may be overridden by the parent context and aren't normalized.
+         */
+        setRaw(prop, value) {
+            if (typeof prop === "object") {
+                for (let key in prop) {
+                    if (prop.hasOwnProperty(key)) {
+                        this.computedStyle[key] = prop[key];
+                    }
+                }
+                return this;
+            }
+
+            this.computedStyle[prop] = value;
+            return this;
+        }
+
+        get(prop) {
+            return this.computedStyle[prop];
+        }
+
+        static textStyleFromCSS(style) {
+            if(!style) return undefined;
+
+            if(style instanceof PIXI.TextStyle) {
+                return style;
+            }
+
+            if(style instanceof Element) {
+                style = window.getComputedStyle(style);
+            }
+
+            const textStyle = {};
+
+            textStyle.align = style.textAlign || "left";
+            textStyle.breakWords = style.overflowWrap === "break-word";
+            if (style.textShadow) textStyle.dropShadow = style.textShadow;
+            if (style.color) textStyle.fill = style.color;
+            textStyle.fontFamily = style.fontFamily || "monospace";
+            textStyle.fontSize = parseInt(style.fontSize) || 16;
+            if (style.fontStyle) textStyle.fontStyle = style.fontStyle;
+            if (style.fontVariant) textStyle.fontVariant = style.fontVariant;
+            if (style.fontWeight) textStyle.fontWeight = style.fontWeight;
+            if (style.letterSpacing) textStyle.letterSpacing = parseInt(style.letterSpacing);
+            if (style.lineHeight) textStyle.lineHeight = parseInt(style.lineHeight);
+            if (style.textStroke) textStyle.stroke = style.textStroke;
+            if (style.verticalAlign) textStyle.textBaseline = style.verticalAlign;
+            if (style.whiteSpace) textStyle.whiteSpace = style.whiteSpace;
+            textStyle.wordWrap = style.wordWrap || (style.whiteSpace === "normal");
+            if (style.wordWrapWidth) textStyle.wordWrapWidth = parseInt(style.wordWrapWidth);
+
+            return new PIXI.TextStyle(textStyle)
+        }
     }
-}, { global: true, singular: true, name: "Toast" });
+
+    const context_style = new StyleContext({
+        display: "block",
+        overflow: "hidden"
+    });
+
+    class Context extends GLElement {
+        constructor(options = {}) {
+            if(!options.style) options.style = context_style;
+            super(options);
+        }
+
+        render() {
+            this.draw();
+            return this;
+        }
+    }
+
+    class Renderer {
+        constructor(options = {}) {
+            this.options = options;
+        }
+
+        async init() {
+            this.renderer = await PIXI.autoDetectRenderer(this.options);
+        }
+    }
+
+    LS.LoadComponent({ GLElement: Element, StyleContext, Context, Renderer }, { name: "GL", global: true });
+})();
+LS.WebSocket = class WebSocketWrapper extends LS.EventHandler {
+    constructor(url, options = {}){
+        super();
+
+        if(!url) throw "No URL specified";
+        if(!url.startsWith("ws://") && !url.startsWith("wss://")) url = (location.protocol === "https:"? "wss://": "ws://") + url;
+
+        this.addEventListener = this.on;
+        this.removeEventListener = this.off;
+
+        if(Array.isArray(options) || typeof options === "string"){
+            options = {protocols: options};
+        }
+
+        if(typeof options !== "object" || options === null || typeof options === "undefined") options = {};
+
+        this.options = LS.Util.defaults({
+            autoReconnect: true,
+            autoConnect: true,
+            delayMessages: true,
+            protocols: null
+        }, options);
+
+        this.waiting = [];
+
+        Object.defineProperty(this, "readyState", {
+            get(){
+                return this.socket.readyState
+            }
+        })
+
+        Object.defineProperty(this, "bufferedAmount", {
+            get(){
+                return this.socket.bufferedAmount
+            }
+        })
+
+        Object.defineProperty(this, "protocol", {
+            get(){
+                return this.socket.protocol
+            }
+        })
+
+        this.url = url;
+        if(this.options.autoConnect) this.connect();
+    }
+
+    connect(){
+        if(this.socket && this.socket.readyState === 1) return;
+
+        this.socket = new WebSocket(this.url, this.options.protocols || null);
+
+        this.socket.addEventListener("open", event => {
+            if(this.waiting.length > 0){
+                for(let message of this.waiting) this.socket.send(message);
+                this.waiting = []
+            }
+
+            this.emit("open", [event])
+        })
+
+        this.socket.addEventListener("message", event => {
+            this.emit("message", [event])
+        })
+
+        this.socket.addEventListener("close", async event => {
+            let prevent = false;
+
+            this.emit("close", [event, () => {
+                prevent = true
+            }])
+
+            if(!prevent && this.options.autoReconnect) this.connect();
+        })
+
+        this.socket.addEventListener("error", event => {
+            this.emit("error", [event])
+        })
+    }
+
+    send(data){
+        if(!this.socket || this.socket.readyState !== 1) {
+            if(this.options.delayMessages) this.waiting.push(data)
+            return false
+        }
+
+        this.socket.send(data)
+        return true
+    }
+
+    close(code, message){
+        this.socket.close(code, message)
+    }
+};/**
+ * Universal generioc I/O node for LS.
+ * @version 1.0.0
+ * 
+ * How is this different from simple EventHandler?
+ * Not much, but it allows for a consistent way to send data across unrelated nodes using custom protocols and connect in a tree structure.
+ * Your main application can have a main input/output node, and then different components or even 3rd party plugins can interact with it using a standard protocol.
+ * For example, a DAW could use this to allow plugins to communicate with each other.
+ * LS.Patcher is compatible with LS.Node too.
+ * 
+ * Example workflow:
+ * @example
+ * const main = new LS.Node({
+ *     onSignal (signal, data, sender) {
+ *         switch (signal) {
+ *             case "audio":
+ *               // Play audio data
+ *               break;
+ *         }
+ *     }
+ * });
+ * 
+ * const audio_processor = new LS.Node({
+ *     onSignal (signal, data, sender) {
+ *         switch (signal) {
+ *             case "audio":
+ *               // Process audio data
+ *               this.output("audio", processedData);
+ *               break;
+ *         }
+ *     }
+ * });
+ * 
+ * main.addChild(audio_processor);
+ * 
+ * // The following code could be made independently of the main application:
+ * const plugin = new LS.Node({
+ *     onSignal (signal, data, sender) {
+ *         switch (signal) {
+ *              case "start":
+ *                 // Start processing
+ *                 this.output("audio", <audio_data>);
+ *                 break;
+ *         }
+ *     }
+ * });
+ * 
+ * // And the main application can simply connect it:
+ * audio_processor.addChild(plugin);
+ * audio_processor.send("start");
+ */
+
+LS.LoadComponent(class Node extends LS.EventHandler {
+    constructor(options = {}) {
+        super();
+
+        if (typeof options.onSignal === "function") {
+            this.on("signal", options.onSignal);
+        }
+
+        this.signalEmitter = this.prepareEvent("signal");
+
+        if(options.hasChildren) {
+            this.children = [];
+        }
+
+        this.parent = null;
+    }
+
+    send(signal, data, propagate = true, sender = null) {
+        this.quickEmit(this.signalEmitter, [signal, data, sender || this]);
+        if (propagate && this.children) for (const child of this.children) {
+            child.send(signal, data, propagate, this);
+        }
+    }
+
+    output(signal, data) {
+        if (this.parent) {
+            this.parent.send(signal, data, this);
+        }
+    }
+
+    addChild(child) {
+        if (!(child instanceof Node)) {
+            throw new Error("Child must be an instance of Node");
+        }
+
+        if (!this.children) return;
+
+        if (child.parent) {
+            child.parent.removeChild(child);
+        }
+
+        this.children.push(child);
+        child.parent = this;
+
+        this.emit("childAdded", [child]);
+        return this;
+    }
+
+    removeChild(child) {
+        if (!this.children) return;
+
+        const index = this.children.indexOf(child);
+        if (index === -1) return;
+
+        this.children.splice(index, 1);
+        child.parent = null;
+
+        this.emit("childRemoved", child);
+    }
+}, { name: "Node", global: true })
+/**
+ * A simple yet powerful, fast and lightweight reactive library for LS
+ * @version 1.0.0
+ * 
+ * TODO: Support attribute binding
+ * TODO: Bind multiple values (eg. {{ user.displayname || user.username }})
+ */
+
+LS.LoadComponent(class Reactive extends LS.Component {
+    constructor(){
+        super()
+
+        this.bindCache = new Map();
+
+        this.global = this.wrap(null, {}, true);
+
+        window.addEventListener("DOMContentLoaded", () => {
+            this.scan();
+        })
+    }
+
+    /**
+     * Scans the document or specific element for elements with the data-reactive attribute and caches them
+     * @param {HTMLElement} scanTarget The target element to scan
+     */
+
+    scan(scanTarget = document.body){
+        const scan = scanTarget.querySelectorAll(`[data-reactive]`);
+
+        for(let target of scan) {
+            this.bindElement(target);
+        }
+    }
+
+    /**
+     * Parses the data-reactive attribute of an element and caches it for lookup
+     * @param {HTMLElement} target The target element to bind
+     */
+
+    bindElement(target, defaultBind = null){
+        let attribute = (defaultBind || target.getAttribute("data-reactive")).trim();
+        if(!attribute || target.__last_bind === attribute) return;
+
+        if(target.__last_bind) this.unbindElement(target, true);
+
+        target.__last_bind = attribute;
+
+        // Match data prefix
+        let value_prefix = null;
+        if(this.constructor.matchStringChar(attribute.charCodeAt(0))) {
+            const string_char = attribute.charAt(0);
+            const end = attribute.indexOf(string_char, 1);
+            if(end === -1) {
+                console.warn("Invalid reactive attribute: " + attribute);
+                return;
+            }
+
+            value_prefix = attribute.slice(1, end);
+            attribute = attribute.slice(end + 1).trim();
+        }
+
+        const [prefix, name, extra] = this.split_path(attribute);
+        if(!name) return;
+
+        const key = this.constructor.parseKey(prefix, name, extra);
+
+        target.__reactive = key;
+
+        if(value_prefix) {
+            target.__reactive.value_prefix = value_prefix;
+        }
+
+        let binding = this.bindCache.get(prefix);
+
+        if(!binding) {
+            binding = { object: null, updated: false, keys: new Map };
+            this.bindCache.set(prefix, binding);
+        }
+
+        const cache = binding.keys.get(key.name);
+        if(cache) cache.add(target); else binding.keys.set(key.name, new Set([target]));
+
+        if(binding.object) this.renderValue(target, binding.object[key.name]);
+    }
+
+    /**
+     * Removes a binding from an element
+     * @param {HTMLElement} target The target element to unbind
+     */
+
+    unbindElement(target, keepAttribute = false){
+        if(!keepAttribute) target.removeAttribute("data-reactive");
+        if(!target.__last_bind) return;
+
+        const [prefix, name] = this.split_path(target.__last_bind);
+
+        delete target.__last_bind;
+        delete target.__reactive;
+
+        if(!name) return;
+
+        let binding = this.bindCache.get(prefix);
+        if(!binding) return;
+
+        const cache = binding.keys.get(name);
+        if(cache) cache.delete(target);
+    }
+
+
+    /**
+     * A fast, light parser to expand a key to an object with dynamic properties, eg. "username || anonymous".
+     * @param {string} extra The key string to parse
+    */
+
+    static parseKey(prefix, name, extra){
+        let i = -1, v_start = 0, v_propety = null, state = 0, string_char = null;
+
+        const result = {
+            prefix, name
+        };
+
+        extra = extra? extra.trim(): null;
+        if(!extra) return result;
+
+        while(++i < extra.length) {
+            const char = extra.charCodeAt(i);
+            
+            if(state === 0) {
+                if(char === 58){ // :
+                    v_start = i + 1;
+                    state = 4;
+                    continue;
+                }
+
+                state = 1;
+            }
+
+            if(state === 4) {
+                if(this.matchKeyword(extra.charCodeAt(i + 1)) && i !== extra.length - 1) continue;
+                const type = extra.slice(v_start, i + 1).toLowerCase();
+                result.type = this.types.get(type) || type;
+
+                if(extra.charCodeAt(i + 1) === 40) { // (
+                    i++;
+                    v_start = i + 1;
+                    state = 5;
+                    continue;
+                }
+
+                state = 1;
+            }
+
+            if (state === 5) {
+                let args = [];
+                while (i < extra.length && extra.charCodeAt(i) !== 41) { // )
+                    if (!this.matchWhitespace(extra.charCodeAt(i))) {
+                        let arg_start = i;
+                        while (i < extra.length && extra.charCodeAt(i) !== 44 && extra.charCodeAt(i) !== 41) { // , or )
+                            i++;
+                        }
+                        args.push(extra.slice(arg_start, i).trim());
+                        if (extra.charCodeAt(i) === 44) i++; // Skip comma
+                    } else {
+                        i++;
+                    }
+                }
+                result.args = args;
+                state = 1;
+            }
+
+            if(state === 3) {
+                if(char === string_char) {
+                    result[v_propety] = extra.slice(v_start, i);
+                    state = 0;
+                }
+                continue;
+            }
+
+            if(this.matchWhitespace(char)) continue;
+
+            if(state === 2) {
+                if(this.matchStringChar(char)) {
+                    string_char = char;
+                    v_start = i + 1;
+                    state = 3;
+                }
+                continue;
+            }
+
+            switch(char) {
+                case 124: // | - Or
+                    if(extra.charCodeAt(i + 1) === 124) {
+                        i++;
+                        v_propety = "or";
+                        state = 2;
+                        break;
+                    }
+
+                    console.warn("You have a syntax error in key: " + extra);
+                    return result; // Invalid
+                
+                case 63: // ? - Default
+                    if(extra.charCodeAt(i + 1) === 63) {
+                        i++;
+                        v_propety = "default";
+                        state = 2;
+                        break;
+                    }
+
+                    console.warn("You have a syntax error in key: " + extra);
+                    return result; // Invalid
+                
+                case 33: // ! - Raw HTML
+                    result.raw = true;
+                    break;
+            }
+        }
+
+        return result;
+    }
+
+    static matchKeyword(char){
+        return (
+            (char >= 48 && char <= 57) || // 0-9
+            (char >= 65 && char <= 90) || // A-Z
+            (char >= 97 && char <= 122) || // a-z
+            char === 95 || // _
+            char === 45    // -
+        )
+    }
+
+    static matchWhitespace(char){
+        return char === 32 || char === 9 || char === 10 || char === 13;
+    }
+
+    static matchStringChar(char){
+        return char === 34 || char === 39 || char === 96;
+    }
+
+    static types = new Map([
+        ["string", String],
+        ["number", Number],
+        ["boolean", Boolean],
+        ["array", Array],
+        ["object", Object],
+        ["function", Function]
+    ]);
+
+    registerType(name, type){
+        if(typeof name !== "string" || !name.trim()) {
+            throw new Error("Invalid type name: " + name);
+        }
+
+        if(typeof type !== "function") {
+            throw new Error("Invalid type: " + type);
+        }
+
+        this.constructor.types.set(name.toLowerCase(), type);
+    }
+
+    split_path(path){
+        if(!path) return [null, null, null];
+
+        const match = path.match(/^([a-zA-Z0-9._-]+)(.*)/);
+
+        if(!match) return [null, path, null];
+
+        path = match[1];
+
+        const lastIndex = path.lastIndexOf(".");
+        const prefix = lastIndex === -1? "": path.slice(0, path.lastIndexOf(".") +1);
+        if(prefix) path = path.slice(lastIndex + 1);
+
+        return [prefix, path, match[2].trim()];
+    }
+
+
+    /**
+     * Wraps an object with a reactive proxy
+     * @param {string} prefix The prefix to bind to
+     * @param {object} object The object to wrap
+     * @param {boolean} recursive Whether to recursively bind all objects
+     */
+
+    wrap(prefix, object = {}, recursive = false){
+        if(typeof prefix === "string") prefix += "."; else prefix = "";
+
+        if(recursive) for(let key in object) {
+            if(typeof object[key] === "object" && object[key] !== null && object[key].__isProxy === undefined && Object.getPrototypeOf(object[key]) === Object.prototype) {
+                object[key] = this.wrap(prefix + key, object[key], true);
+            }
+        }
+
+        if(object.__isProxy) return object;
+
+        let binding = this.bindCache.get(prefix);
+
+        if(!binding) {
+            binding = { object, updated: true, keys: new Map };
+            this.bindCache.set(prefix, binding);
+        } else {
+            binding.object = object;
+        }
+
+        this.render(binding);
+
+        return new Proxy(object, {
+            set: (target, key, value) => {
+                // Wrap new nested objects dynamically
+                if(recursive && typeof value === "object" && value !== null && !value.__isProxy) {
+                    value = this.wrap(prefix + key, value, true);
+                    target[key] = value;
+                    return;
+                }
+
+                target[key] = value;
+                binding.updated = true;
+                this.renderKey(key, target, binding.keys.get(key));
+                return true;
+            },
+
+            get: (target, key) => key === "__isProxy"? true: key === "__binding"? binding: target[key],
+
+            deleteProperty: (target, key) => {
+                delete target[key];
+                this.renderKey(key, target, binding.keys.get(key));
+            }
+        })
+    }
+
+    /**
+     * Binds an existing object property without wrapping
+     * @param {string} path The path and key to bind to
+     * @param {object} object The object with the property to bind
+     */
+
+    bind(path, object){
+        const [prefix, key] = this.split_path(path);
+
+        let binding = this.bindCache.get(prefix);
+        if (!binding) {
+            binding = { object: object, updated: true, keys: new Map() };
+            this.bindCache.set(prefix, binding);
+        }
+
+        Object.defineProperty(object, key, {
+            get: () => binding.object[key],
+            set: (value) => {
+                binding.object[key] = value;
+                binding.updated = true;
+                this.renderKey(key, binding.object, binding.keys.get(key));
+            },
+
+            configurable: true
+        });
+
+        return object;
+    }
+
+    renderAll(bindings){
+        for(let binding of Array.isArray(bindings)? bindings: this.bindCache.values()) {            
+            if(binding && binding.object && binding.updated) this.render(binding);
+        }
+    }
+
+    /**
+     * Renders a binding object
+     * @param {object} binding The binding object to render
+     * @param {string} specificKey A specific key to render
+     */
+
+    render(binding){
+        if(!binding) return this.renderAll();
+        if(!binding.object) return;
+
+        binding.updated = false;
+
+        for(let [key, cache] of binding.keys) {
+            this.renderKey(key, binding.object, cache);
+        }
+    }
+
+    renderKey(key, source, cache){
+        if(!cache || cache.size === 0) return;
+
+        const value = source[key];
+        for(let target of cache) {
+            this.renderValue(target, value);
+        }
+    }
+
+    renderValue(target, value){
+        if(typeof value === "function") value = value();
+
+        if(!value && target.__reactive.or) {
+            value = target.__reactive.or;
+        }
+
+        if(target.__reactive.default && (typeof value === "undefined" || value === null)) {
+            value = target.__reactive.default;
+        }
+
+        // Try getting the type again
+        if(typeof target.__reactive.type === "string") {
+            target.__reactive.type = this.constructor.types.get(target.__reactive.type.toLowerCase()) || target.__reactive.type;
+        }
+
+        if(typeof target.__reactive.type === "function") {
+            value = target.__reactive.type(value, target.__reactive.args || []);
+        }
+
+        if(target.__reactive.value_prefix) {
+            value = target.__reactive.value_prefix + value;
+        }
+
+        if(value instanceof Element) {
+            target.replaceChildren(value);
+            return;
+        }
+
+        if(target.__reactive.attribute) {
+            target.setAttribute(target.__reactive.attribute, value);
+            return;
+        }
+
+        if(target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT") {
+
+            if(target.type === "checkbox") target.checked = Boolean(value);
+            else target.value = value;
+
+        } else if(target.tagName === "IMG" || target.tagName === "VIDEO" || target.tagName === "AUDIO") {
+
+            target.src = value;
+
+        } else {
+
+            if(target.__reactive.raw) target.innerHTML = value; else target.textContent = value;
+
+        }
+    }
+}, { name: "Reactive", singular: true, global: true })
 LS.LoadComponent(class Tabs extends LS.Component {
     constructor(element, options = {}) {
         super();
@@ -1366,18 +2399,24 @@ LS.LoadComponent(class Tabs extends LS.Component {
         this.container = O(element);
 
         options = LS.Util.defaults({
-            unstyled: false,
+            styled: options.unstyled? false: true,
             list: true,
+            closeable: false,
             selector: "ls-tab, .ls-tab",
+            mode: "default",
         }, options);
         
-        if(!options.unstyled) {
+        if(options.styled) {
             this.container.class("ls-tabs-styled");
+        }
+
+        if(options.mode) {
+            this.container.class("ls-tabs-mode-" + options.mode);
         }
 
         if(options.selector) {
             this.container.getAll(options.selector).forEach((tab, i) => {
-                this.add(tab.getAttribute("id") || "tab-" + i, tab);
+                this.add(tab.getAttribute("tab-id") || tab.getAttribute("id") || tab.getAttribute("tab-title") || "tab-" + i, tab);
             });
         }
 
@@ -1452,54 +2491,46 @@ LS.LoadComponent(class Tabs extends LS.Component {
         }
     }
 
-    set(id) {
+    set(id, force = false) {
         if(typeof id === "number") {
             id = this.order[id];
         }
 
         const tab = this.tabs.get(id);
-        const currentTab = this.tabs.get(this.activeTab)
+        const currentTab = this.tabs.get(this.activeTab);
 
         if(!tab) {
             return false;
         }
 
-        const index = this.order.indexOf(id);
+        // const index = this.order.indexOf(id);
 
-        if(this.activeTab === id) {
-            return true;
+        if(this.activeTab === id && !force) {
+            return false;
         }
 
         if(currentTab) {
-            currentTab.element.class("tab-active", false);
+            if(currentTab.element) {
+                currentTab.element.class("tab-active", false);
+            }
 
             if(currentTab.handle) {
                 currentTab.handle.class("active", false);
             }
         }
-        
-        tab.element.class("tab-active");
-        this.emit("changed", [id]);
+
+        if(tab.element) {
+            tab.element.class("tab-active");
+        }
+
+        this.emit("changed", [id, currentTab?.id || null]);
 
         if(tab.handle) {
             tab.handle.class("active");
         }
 
         this.activeTab = id;
-
-        // if(this.options.list) {
-        //     for(const tab in this.tabs) {
-        //         const _element = O(this.tabs[tab].element);
-        //         if(!_element || tab === id) {
-        //             continue;
-        //         }
-
-        //         _element.class("tab-active", 0);
-        //         if(this.options.hide && this.options.mode !== "presentation") {
-        //             _element.hide();
-        //         }
-        //     }
-        // }
+        return true;
     }
 
     first() {
@@ -1587,8 +2618,74 @@ LS.LoadComponent(class Tabs extends LS.Component {
             this.list.add(tab.handle);
         });
     }
-}, { name: 'Tabs', global: true });
-LS.LoadComponent(class Tooltips extends LS.Component {
+}, { name: 'Tabs', global: true });LS.LoadComponent(class Toast extends LS.Component {
+    constructor(){
+        super()
+
+        let container = this.container = N({
+            class: "ls-toast-layer"
+        });
+
+        LS.once("body-available", () => {
+            LS._topLayer.add(container);
+        })
+    }
+
+    closeAll(){
+        this.emit("close-all")
+    }
+
+    show(content, options = {}){
+        let toast = N({
+            class: "ls-toast level-n2",
+            accent: options.accent || null,
+
+            inner: [
+                options.icon? N("i", {class: options.icon}) : null,
+
+                N({inner: content, class: "ls-toast-content"}),
+
+                !options.uncancellable? N("button", {
+                    class: "elevated circle ls-toast-close",
+                    inner: "&times;",
+
+                    onclick(){
+                        methods.close()
+                    }
+                }): null
+            ]
+        })
+
+        let methods = {
+            element: toast,
+
+            update(content){
+                toast.get(".ls-toast-content").set(content)
+            },
+
+            close(){
+                toast.class("open", 0);
+                setTimeout(()=>{
+                    if(!options.keep) toast.remove()
+                }, 150)
+            }
+        }
+
+        this.once("close-all", methods.close)
+
+        this.container.add(toast);
+
+        if(options.timeout) setTimeout(()=>{
+            methods.close()
+        }, options.timeout)
+        
+        setTimeout(()=>{
+            toast.class("open")
+        }, 1)
+
+        return methods
+    }
+}, { global: true, singular: true, name: "Toast" });LS.LoadComponent(class Tooltips extends LS.Component {
     constructor(){
         super()
 
@@ -1629,11 +2726,11 @@ LS.LoadComponent(class Tooltips extends LS.Component {
         ;
 
         this.contentElement.applyStyle({
-            left:(
-                box.width ? Math.min(Math.max(box.left+(box.width/2)-(cbox.width/2),4),innerWidth-(cbox.width)) : box.x
+            left: (
+                box.width ? Math.min(Math.max(box.left + (box.width / 2) - (cbox.width / 2), 4), innerWidth - (cbox.width)) : box.x
             ) + "px",
 
-            maxWidth:(innerWidth - 8)+"px",
+            maxWidth: (innerWidth - 8) + "px",
 
             top: typeof y === "number"? y + "px": `calc(${pos_top < 20? pos_bottom : pos_top}px ${pos_top < 0? "+" : "-"} var(--ui-tooltip-rise, 5px))`
         })
@@ -1657,35 +2754,36 @@ LS.LoadComponent(class Tooltips extends LS.Component {
         for(let mutation of mutations.reverse()) {
             if(typeof mutation !== "object" || !mutation || !mutation.target) continue;
 
-            let e = O(mutation.target), attr = mutation.attributeName;
+            let element = O(mutation.target), attribute = mutation.attributeName;
 
-            e.hasTooltip = e.hasAttribute(attr);
-            e.tooltip_value = e.attr(attr);
-            e.tooltip_hint = e.hasAttribute("ls-hint");
+            element.ls_hasTooltip = element.hasAttribute(attribute);
+            element.ls_tooltip_isHint = element.hasAttribute("ls-hint");
 
-            if(!e._hasTooltip)! this.setup(e);
+            if(!element.ls_tooltipSetup) !this.setup(element);
         }
     }
 
     rescan(){
-        this.addElements(Q(this.attributes.map(a=>`[${a}]`).join(",")).map(e=>{
+        this.addElements([...document.querySelectorAll(this.attributes.map(a=>`[${a}]`).join(","))].map(element => {
             return {
-                target: e,
-                attributeName: Object.keys(e.attr()).find(a=>this.attributes.includes(a))
+                target: element,
+                attributeName: Object.keys(element.attr()).find(a=>this.attributes.includes(a))
             }
         }))
     }
 
     setup(element){
-        element._hasTooltip = true;
+        element.ls_tooltipSetup = true;
      
         element.on("mouseenter", ()=>{
-            if(!element.hasTooltip) return;
-            this.invoke("set", element.tooltip_value);
+            if(!element.ls_hasTooltip) return;
+            const value = element.ls_tooltip || element.getAttribute("ls-tooltip") || element.getAttribute("ls-hint");
 
-            if(element.tooltip_hint) return;
+            this.emit("set", [value, element]);
 
-            this.set(element.tooltip_value)
+            if(element.ls_tooltip_isHint) return;
+
+            this.set(value)
             this.show()
 
             this.position(element)
@@ -1694,9 +2792,114 @@ LS.LoadComponent(class Tooltips extends LS.Component {
         element.on("mousemove", () => this.position(element))
 
         element.on("mouseleave", () => {
-            if(!element.hasTooltip) return;
-            this.invoke("leave", element.tooltip_value);
+            if(!element.ls_hasTooltip) return;
+
+            this.emit("leave", [element.tooltip_value]);
             this.hide()
         })
     }
-}, { global: true, singular: true, name: "Tooltips" });
+}, { global: true, singular: true, name: "Tooltips" });/*
+
+    For older projects that used LS v2/v3/v4 modules or features, this patch aims to provide some
+    backwards-compatibility to allow them to keep using v5 of the framework.
+
+    It re-adds some deprecated features, and sort of brings back the old component system.
+
+*/
+
+(() => {
+    const og_LoadComponents = LS.LoadComponents;
+
+    LS.LoadComponents = function(components){
+        /*
+            Old (v4) component system backwards-compatibility for v5
+        */
+
+        if(Array.isArray(components)) return og_LoadComponents(components);
+
+        for(let name in components){
+            LS[name] = function ComponentInstance(id, ...attributes){
+                if(LS[name].conf.isFunction) return (LS[name].class({})) (id, ...attributes);
+                return LS[name].new(id, ...attributes);
+            }
+
+            LS[name].class = (components[name]) (LS[name]);
+
+            LS[name].conf = {
+                batch: true,
+                events: true,
+                ... LS[name].conf
+            };
+
+            if(LS[name].conf.events) LS[name].Events = new LS.EventHandler(LS[name]);
+
+            if(LS[name].conf.singular){
+
+                if(LS[name].conf.becomeClass) {
+                    LS[name] = LS[name].class;
+                    continue
+                }
+
+                LS[name] = LS[name].new("global");
+            }
+
+            LS[name].new = function (id, ...attributes){
+                let ClassInstance = new((LS[name].class)({})) (id, ...attributes);
+                if(LS[name].conf.events) ClassInstance.Events = new LS.EventHandler(ClassInstance);
+                if(ClassInstance._init) ClassInstance._init();
+
+                return ClassInstance
+            }
+        }
+    }
+
+    LS.Tiny.M.payloadSignature = function (title, dataArray = [], paddingSize = 128, base = 16){
+        if(dataArray.length > paddingSize){
+            throw "The length of data cannot exceed the padding size"
+        }
+
+        if(base < 16 || base > 36) throw "base must be a number between 16 and 36";
+
+        let encoder = new TextEncoder();
+
+        for(let i = 0; i < dataArray.length; i++){
+            if(!(dataArray[i] instanceof Uint8Array) && typeof dataArray[i] !== "string") throw "Data can only be a string or an Uint8Array.";
+            dataArray[i] = typeof dataArray[i] === "string"? encoder.encode(dataArray[i]): dataArray[i];
+        }
+
+        dataArray.push(crypto.getRandomValues(new Uint8Array(paddingSize - dataArray.length)));
+
+        let data = dataArray.map(data => [...data].map(value => value.toString(base).padStart(2, "0")).join("")).join(":") + "0" + (base -1).toString(base)
+
+        return `---signature block start "${M.uid()}${title? "-"+ title: ""}"---\n${data}\n---signature block end---`
+    }
+
+    LS.Tiny.M.parsePayloadSignature = function (signature){
+        if(!signature.startsWith("---signature block start") || !signature.endsWith("\n---signature block end---")) throw "Invalid signature data";
+
+        let header = signature.match(/---signature block start "(.*?)"---\n/)[1].split("-"), timestamp, id, instanceID;
+
+        timestamp = parseInt(header[0], 36)
+        id = parseInt(header[1], 36)
+        instanceID = parseInt(header[2], 36)
+        header = header[4] || null
+
+        function decodeBody(hexString) {
+            const byteArray = new Uint8Array(hexString.length / 2);
+
+            for (let i = 0; i < hexString.length; i += 2) {
+                byteArray[i / 2] = parseInt(hexString.substring(i, i + 2), base);
+            }
+            
+            return byteArray;
+        }
+
+        let rawBody = signature.match(/['"t]---\n(.*?)\n---signature block end/s)[1], base = parseInt(rawBody.slice(-2), 36) +1;
+        
+        let body = rawBody.split(":").map(payload => decodeBody(payload));
+        
+        let padding = body.pop()
+
+        return { header, body, padding, timestamp, id, instanceID }
+    }
+})();

@@ -34,12 +34,6 @@ A simple and elegant clipboard manager, opens with Alt+V, ability to save to dis
 
 Inspired by the Win+V clipboard manager in Windows.
 
-TODO:
-- Add a pin button to save items
-- Add a delete button to individual items
-- Add a + button to allow adding custom entries
-- Maybe add folders
-
 <img width="310" height="430" alt="Screenshot from 2025-07-10 20-41-54" src="https://github.com/user-attachments/assets/5243fdec-00c4-4ea7-a15c-e68b4a39009d" />
 
 
@@ -67,6 +61,10 @@ TODO:
 
 <img width="306" height="422" alt="Screenshot from 2025-07-11 00-04-06" src="https://github.com/user-attachments/assets/1e85f3eb-bf8e-4b68-875c-f640b2e33279" />
 
+## Token Manager
+A simple UI for managing secrets.
+
+![Token Manager](misc/screenshots/tokenstorage.png)
 
 <!-- Hello world! -->
 

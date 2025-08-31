@@ -120,3 +120,19 @@
 .category-title {
     margin-top: 5px;
 }
+
+.clipboard-item-controls {
+    display: flex;
+    gap: 4px;
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    transform: translateX(10px);
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
+}
+
+.clipboard-item:hover .clipboard-item-controls {
+    transform: translateX(0);
+    opacity: 1;
+}

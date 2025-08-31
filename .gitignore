@@ -3,3 +3,4 @@ package-lock.json
 
 tools/desktop_test
 tools/clipboard/folders.json
+tools/clipboard/pinnedClipboard.json

@@ -128,9 +128,121 @@
                     <ls-tab tab-title="<i class='bi-file-earmark-lock'></i>" id="lockedFoldersTab">
                         <ls-div class="buttons">
                             <h3 class="title">Locked folders</h3>
+                            <button class="elevated pill" id="lockedFoldersRefresh">Refresh</button>
                         </ls-div>
 
                         <div id="lockedFolders"></div>
+                    </ls-tab>
+
+                    <ls-tab tab-title="<i class='bi-key'></i>" id="tokenStorageTab">
+                        <ls-div class="buttons">
+                            <h3 class="title">Token storage</h3>
+                        </ls-div>
+
+                        <form class="buttons" onsubmit="addToken(this); return false;">
+                            <ls-group>
+                                <input type="text" id="tokenTitle" placeholder="Title">
+                                <input type="text" id="tokenValue" placeholder="Value">
+                                <button class="elevated" type="submit"><i class="bi-plus-lg"></i></button>
+                            </ls-group>
+                        </form>
+
+                        <div id="tokenList"></div>
+
+                        <span style="color: gray; font-size: small; text-align: center; padding: 4px 0">Hold shift while clicking <i class="bi-clipboard"></i> to paste</span>
+
+                        <script>
+                            let tokens;
+
+                            function refreshTokens() {
+                                tokens = JSON.parse(localStorage.getItem('tokens') || '[]');
+                                const tokenContainer = document.getElementById('tokenList');
+                                tokenContainer.innerHTML = '';
+
+                                if (tokens && tokens.length > 0) {
+                                    tokens.forEach(token => {
+                                        const tokenElement = N({
+                                            class: "tokenContainer",
+                                            inner: [
+                                                N([
+                                                    N({
+                                                        class: "tokenTitle",
+                                                        inner: token.title
+                                                    }),
+                                                    N({
+                                                        class: "tokenValue",
+                                                        inner: token.value.trim().length > 5 ? token.value.trim().substring(0, 5) + "..." : token.value.trim(),
+                                                    }),
+                                                ]),
+
+                                                N("ls-group", [
+                                                    N("button", {
+                                                        class: "elevated",
+                                                        title: "Copy",
+                                                        inner: N("i", { class: "bi-clipboard" }),
+                                                        onclick() {
+                                                            if (event.shiftKey) {
+                                                                copyPaste(token.value);
+                                                                return;
+                                                            }
+
+                                                            LS.Util.copy(token.value);
+                                                            LS.Toast.show("Copied to clipboard", { timeout: 1000 });
+                                                        }
+                                                    }),
+                                                    N("button", {
+                                                        class: "elevated warning",
+                                                        title: "Delete",
+                                                        inner: N("i", { class: "bi-trash" }),
+                                                        onclick() {
+                                                            tokens = tokens.filter(t => t !== token);
+                                                            localStorage.setItem('tokens', JSON.stringify(tokens));
+                                                            refreshTokens();
+                                                        }
+                                                    })
+                                                ])
+                                            ]
+                                        });
+
+                                        tokenContainer.appendChild(tokenElement);
+                                    });
+                                }
+                            }
+
+                            refreshTokens();
+
+                            function addToken(form) {
+                                const title = form.tokenTitle.value.trim();
+                                const value = form.tokenValue.value.trim();
+
+                                if (title && value) {
+                                    tokens.push({ title, value });
+                                    localStorage.setItem('tokens', JSON.stringify(tokens));
+                                    form.reset();
+                                    refreshTokens();
+                                }
+                            }
+                        </script>
+
+                        <style>
+                            .tokenContainer {
+                                display: flex;
+                                align-items: center;
+                                justify-content: space-between;
+                                padding: 8px 10px;
+                                border-bottom: 1px solid var(--elevate-2);
+                            }
+
+                            .tokenValue {
+                                color: var(--elevate-3);
+                                font-family: monospace;
+                            }
+
+                            #tokenList {
+                                padding: 10px;
+                                overflow: auto;
+                            }
+                        </style>
                     </ls-tab>
                 </ls-tabs>
             </div>
