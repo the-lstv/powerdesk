@@ -218,7 +218,7 @@
                     get(target, key){
                         return LS.TinyFactory[key] || target[key]
                     },
-    
+
                     set(target, key, value){
                         return target[key] = value
                     }
@@ -720,11 +720,11 @@
                 }
 
                 document.addEventListener('pointerlockchange',  pointerLockChangeWatch);
-    
+
                 function release(evt) {
                     events.seeking = false;
                     cancelled = false;
-    
+
                     element.class("is-dragging", 0)
                     events.target.class("ls-drag-target", 0)
                     document.documentElement.class("ls-dragging",0)
@@ -733,7 +733,7 @@
                     document.removeEventListener("touchmove", move);
                     document.removeEventListener("touchend", release);
                     document.documentElement.style.cursor = "";
-    
+
                     events.emit(evt.type == "destroy"? "destroy" : "end", [evt])
 
                     if(events.pointerLockActive){
@@ -942,7 +942,7 @@
             if (g === null || typeof g === "undefined" || isNaN(g)) g = 255;
             if (b === null || typeof b === "undefined" || isNaN(b)) b = 255;
             if (a === null || typeof a === "undefined" || isNaN(a)) a = 1;
-    
+
             this.r = Math.round(Math.min(255, Math.max(0, r)));
             this.g = Math.round(Math.min(255, Math.max(0, g)));
             this.b = Math.round(Math.min(255, Math.max(0, b)));
@@ -988,32 +988,32 @@
         get hex() {
             return "#" + this.hexInt.toString(16).slice(1);
         }
-    
+
         get rgb() {
             return `rgb(${this.r}, ${this.g}, ${this.b})`;
         }
-    
+
         get rgba() {
             return `rgba(${this.r}, ${this.g}, ${this.b}, ${this.a})`;
         }
-    
+
         get hsl() {
             let r = this.r / 255;
             let g = this.g / 255;
             let b = this.b / 255;
-    
+
             let max = Math.max(r, g, b);
             let min = Math.min(r, g, b);
-    
+
             let l = (max + min) / 2;
             let h, s;
-    
+
             if (max === min) {
                 h = s = 0;
             } else {
                 let delta = max - min;
                 s = l > 0.5 ? delta / (2 - max - min) : delta / (max + min);
-    
+
                 switch (max) {
                     case r:
                         h = (g - b) / delta + (g < b ? 6 : 0);
@@ -1027,22 +1027,22 @@
                 }
                 h /= 6;
             }
-    
+
             h = Math.round(h * 360);
             s = Math.round(s * 100);
             l = Math.round(l * 100);
-    
+
             return [h, s, l];
         }
-    
+
         get color() {
             return [this.r, this.g, this.b, this.a];
         }
-    
+
         get pixel() {
             return [this.r, this.g, this.b, this.a * 255];
         }
-    
+
         get brightness() {
             return Math.sqrt(
                 0.299 * (this.r * this.r) +
@@ -1050,17 +1050,17 @@
                 0.114 * (this.b * this.b)
             );
         }
-    
+
         get isDark() {
             return this.brightness < 127.5;
         }
-    
+
         hue(hue) {
             let [h, s, l] = this.hsl;
             l = Math.max(Math.min(hue, 360), 0);
             return LS.Color.fromHSL(h, s, l);
         }
-    
+
         saturation(percent) {
             let [h, s, l] = this.hsl;
             s = Math.max(Math.min(percent, 100), 0);
@@ -1141,11 +1141,11 @@
         static fromHSL(h, s, l) {
             s /= 100;
             l /= 100;
-    
+
             let k = n => (n + h / 30) % 12,
                 a = s * Math.min(l, 1 - l),
                 f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
-    
+
             return new LS.Color(255 * f(0), 255 * f(8), 255 * f(4));
         }
 
@@ -1367,10 +1367,10 @@
                 element.style.display = 'none';
             }, duration);
         },
-    
+
         fadeIn(element, duration = 300, direction = null) {
             duration = duration ?? 300;
-    
+
             element.style.display = '';
             
             if (direction) {
@@ -1385,18 +1385,18 @@
                 if (direction) element.style.transform = 'translateY(0) translateX(0)';
             }, 0);
         },
-    
+
         slideInToggle(newElement, oldElement = null, duration = 300) {
             if (oldElement) {
                 oldElement.classList.remove('visible');
                 oldElement.classList.add('leaving');
-    
+
                 if (oldElement._leavingTimeout) clearTimeout(oldElement._leavingTimeout);
                 oldElement._leavingTimeout = setTimeout(() => {
                     oldElement.classList.remove('leaving');
                 }, duration);
             }
-    
+
             if (newElement._leavingTimeout) clearTimeout(newElement._leavingTimeout);
             newElement.classList.remove('leaving');
             newElement.classList.add("visible");
@@ -1546,7 +1546,7 @@ if(!globalThis.PIXI) {
         removeTooltip() {
             
         }
-    
+
         add(nodes) {
             for(let node of Array.isArray(nodes)? nodes: [nodes]){
                 this.addChild(node)

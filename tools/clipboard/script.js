@@ -49,7 +49,7 @@ function addControls(item){
             savePinned();
         }
     });
-    
+
     if(isPinned) item.element.classList.add('pinned');
 
     const removeBtn = N('button', {
@@ -177,7 +177,7 @@ window.addEventListener("blur", () => {
 function checkDuplicate(item, data){
     item.hash = xxh3.xxh64(data);
     item.element.__hash = item.hash;
-    
+
     if(clipboardHistory.children[clipboardHistory.children.length - 1]?.__hash === item.hash){
         return false;
     }
@@ -341,14 +341,14 @@ if(fs.existsSync(__dirname + '/folders.json')) {
         
         folders.forEach(folder => {
             if(!folder.path) return;
-    
+
             if(!folder.cipherFolder) folder.cipherFolder = "cipher";
             if(!folder.plainFolder) folder.plainFolder = "plain";
-    
+
             let isMounted = checkIsMounted(folder.path + '/' + folder.plainFolder);
-    
+
             console.log(`Checking if ${folder.path}/${folder.plainFolder}/ is mounted: ${isMounted}`);
-    
+
             const button = N("button", {
                 class: "pill",
                 inner: [ N("i", { class: "bi-" + (isMounted? "folder-fill": "folder-x"), style: {marginRight: "6px"} }), folder.name ],
@@ -388,7 +388,7 @@ if(fs.existsSync(__dirname + '/folders.json')) {
                     }
                 }
             });
-    
+
             lockedFolders.appendChild(button);
         });
     }

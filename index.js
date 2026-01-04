@@ -63,7 +63,7 @@ class ApplicationContext {
 
         if(options.skipTaskbar){
             window.setSkipTaskbar(true);
-    
+
             setTimeout(() => {
                 window.setSkipTaskbar(true);
             }, 1000);

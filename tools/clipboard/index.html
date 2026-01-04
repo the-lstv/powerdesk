@@ -244,6 +244,168 @@
                             }
                         </style>
                     </ls-tab>
+
+                    <ls-tab tab-title="<i class='bi-shield-lock'></i>" id="totpManagerTab">
+                        <ls-div class="buttons">
+                            <h3 class="title">TOTP Manager</h3>
+                            <button class="elevated pill" id="totpAddBtn">Add TOTP</button>
+                        </ls-div>
+
+                        <form id="totpForm" class="buttons" style="display:none;" onsubmit="addTotp(this); return false;">
+                            <ls-group>
+                                <input type="text" id="totpLabel" placeholder="Label" required>
+                                <input type="text" id="totpSecret" placeholder="Secret" required>
+                                <button class="elevated" type="submit"><i class="bi-plus-lg"></i></button>
+                            </ls-group>
+                        </form>
+
+                        <div id="totpList"></div>
+
+                        <script>
+                            const totpGenerator = require("totp-generator").TOTP;
+
+                            let totps = [];
+
+                            function refreshTotps() {
+                                totps = JSON.parse(localStorage.getItem('totps') || '[]');
+                                const list = document.getElementById('totpList');
+                                list.innerHTML = '';
+
+                                if (totps.length === 0) {
+                                    list.innerHTML = "<div style='color:gray;text-align:center;'>No TOTP entries</div>";
+                                    return;
+                                }
+
+                                totps.forEach((entry, idx) => {
+                                    const container = N({
+                                        class: "tokenContainer",
+                                        inner: [
+                                            N([
+                                                N({ class: "tokenTitle", inner: entry.label }),
+                                                N({ class: "tokenValue", id: "totpCode" + idx, inner: "------" }),
+                                            ]),
+                                            N("ls-group", [
+                                                N("button", {
+                                                    title: "Copy",
+                                                    inner: N("i", { class: "bi-clipboard" }),
+                                                    onclick() {
+                                                        const code = document.getElementById("totpCode" + idx).textContent;
+
+                                                        if (event.shiftKey) {
+                                                            copyPaste(code);
+                                                            return;
+                                                        }
+
+                                                        LS.Util.copy(code);
+                                                        LS.Toast.show("TOTP copied", { timeout: 1000 });
+                                                    }
+                                                }),
+                                                N("button", {
+                                                    class: "warning",
+                                                    title: "Delete",
+                                                    inner: N("i", { class: "bi-trash" }),
+                                                    onclick() {
+                                                        totps.splice(idx, 1);
+                                                        localStorage.setItem('totps', JSON.stringify(totps));
+                                                        refreshTotps();
+                                                    }
+                                                })
+                                            ])
+                                        ]
+                                    });
+                                    list.appendChild(container);
+                                });
+                                updateTotpCodes();
+                            }
+
+                            async function updateTotpCodes() {
+                                if (document.hidden) return;
+                                for (let i = 0; i < totps.length; i++) {
+                                    try {
+                                        const { otp, expires } = totpGenerator.generate(totps[i].secret);
+                                        const el = document.getElementById("totpCode" + i);
+                                        if (el) el.textContent = otp;
+
+                                        if (el) {
+                                            let now = Date.now();
+                                            let secondsLeft = Math.max(0, Math.round((expires - now) / 1000));
+                                            el.parentElement.parentElement.style.setProperty('--totp-progress', (secondsLeft / 30));
+                                        }
+                                    } catch (e) {
+                                        const el = document.getElementById("totpCode" + i);
+                                        if (el) el.textContent = "Error";
+                                    }
+                                }
+                            }
+
+                            setInterval(updateTotpCodes, 1000);
+
+                            function addTotp(form) {
+                                const label = form.totpLabel.value.trim();
+                                const secret = form.totpSecret.value.trim().replace(/\s+/g, '');
+                                if (label && secret) {
+                                    totps.push({ label, secret });
+                                    localStorage.setItem('totps', JSON.stringify(totps));
+                                    form.reset();
+                                    form.style.display = "none";
+                                    refreshTotps();
+                                }
+                            }
+
+                            document.getElementById('totpAddBtn').onclick = () => {
+                                document.getElementById('totpForm').style.display = "block";
+                            };
+
+                            refreshTotps();
+                        </script>
+                        <style>
+                            #totpList .tokenValue {
+                                font-family: monospace;
+                                font-size: 2em;
+                                color: var(--color);
+                                letter-spacing: 2px;
+                            }
+
+                            #totpList {
+                                overflow: auto;
+                            }
+
+                            #totpList .tokenContainer {
+                                position: relative;
+                            }
+
+                            #totpList .tokenContainer::before {
+                                content: "";
+                                position: absolute;
+                                top: 0;
+                                left: 0;
+                                width: 100%;
+                                height: 100%;
+                                background: var(--elevate);
+                                opacity: 0.6;
+                                transform-origin: left;
+                                transform: scaleX(var(--totp-progress, 1));
+                                transition: transform 1s linear;
+                                pointer-events: none;
+                                z-index: 0;
+                            }
+
+                            #totpList .tokenContainer > * {
+                                position: relative;
+                                z-index: 1;
+                            }
+
+                            #totpList .tokenTitle {
+                                font-size: small;
+                                color: var(--surface-8);
+                            }
+
+                            #totpList .tokenValue {
+                                position: relative;
+                                overflow: visible;
+                            }
+                        </style>
+                    </ls-tab>
                 </ls-tabs>
             </div>
         </div>

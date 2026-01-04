@@ -4,6 +4,7 @@
     "clipboard-event": "^1.6.0",
     "dbus-next": "^0.10.2",
     "electron": "^34.1.0",
+    "totp-generator": "^1.0.0",
     "wallpaper": "^7.2.1"
   },
   "main": "index.js",
