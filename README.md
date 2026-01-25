@@ -1,4 +1,4 @@
-![Icon](misc/icon.svg?0)
+![Icon](https://cdn.extragon.cloud/file/fa1eef9e0cec2e2.svg)
 
 # PowerDesk (alpha)
 A collection of small desktop addons and utilities for Linux, aiming to enhance your experience. Early alpha version (still far from stable).
