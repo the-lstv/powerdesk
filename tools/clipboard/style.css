@@ -48,6 +48,31 @@
     gap: 8px;
 }
 
+#clipboardResultMeta {
+    color: var(--surface-8);
+    font-size: 12px;
+    padding: 10px 15px;
+}
+
+#clipboardLoadMore {
+    margin: 8px 10px 10px;
+    align-self: center;
+}
+
+.clipboard-empty-state {
+    color: var(--surface-8);
+    text-align: center;
+    padding: 20px 10px;
+}
+
+.ls-tab-handle > div {
+    z-index: 1;
+}
+
+.clipboard-item-container {
+    position: relative;
+}
+
 #content ls-tab {
     height: 100%;
     display: none;

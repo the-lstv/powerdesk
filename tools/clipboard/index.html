@@ -20,11 +20,11 @@
 
 </head>
 
-<body ls ls-style="flat" ls-accent="auto" class="level-1 force-shadow">
+<body ls ls-style="flat" ls-accent="white" class="level-0 force-shadow">
 
     <div id="wrapper">
 
-        <div id="main-background">
+        <div level-0 id="main-background">
             <div id="main">
                 <div id="handle">
                     <div></div>
@@ -32,10 +32,10 @@
 
                 <ls-tabs id="content">
                     <ls-tab id="clipboardManager" tab-title="<i class='bi-clipboard'></i>">
-                        <ls-div class="buttons">
-                            <h3 class="title">Clipboard</h3>
-                            <button class="elevated pill" onclick="clearAll()">Clear all</button>
-                        </ls-div>
+                        <ls-group class="buttons" style="gap: 0;">
+                            <input type="text" id="clipboardSearch" placeholder="Search clipboard...">
+                            <button class="elevated square" onclick="clearAll()"><i class="bi-trash"></i></button>
+                        </ls-group>
 
                         <div id="clipboardHistory"></div>
                     </ls-tab>
@@ -59,19 +59,19 @@
 
                             emojiCategories.forEach(category => {
 
-                                category.containerElement = N("div", {
+                                category.containerElement = LS.Create("div", {
                                     class: "emoji-category",
                                     id: "category-" + category.slug
                                 });
 
-                                category.titleElement = N("h3", {
+                                category.titleElement = LS.Create("h3", {
                                     class: "category-title",
                                     textContent: category.name
                                 });
 
-                                emojiCategoriesContainer.appendChild(N("button", {
+                                emojiCategoriesContainer.appendChild(LS.Create("button", {
                                     class: "category-button",
-                                    inner: N("i", { class: "bi-" + category.icon }),
+                                    inner: LS.Create("i", { class: "bi-" + category.icon }),
                                     onclick: () => {
                                         category.containerElement.scrollIntoView({ behavior: "smooth", block: "start" });
                                     }
@@ -81,7 +81,7 @@
                                 emojiList.appendChild(category.containerElement);
 
                                 category.emojis.forEach(emoji => {
-                                    const button = N("button", {
+                                    const button = LS.Create("button", {
                                         class: "emoji circle",
                                         textContent: emoji.emoji,
                                         onclick: () => copyPaste(emoji.emoji),
@@ -128,7 +128,7 @@
                     <ls-tab tab-title="<i class='bi-file-earmark-lock'></i>" id="lockedFoldersTab">
                         <ls-div class="buttons">
                             <h3 class="title">Locked folders</h3>
-                            <button class="elevated pill" id="lockedFoldersRefresh">Refresh</button>
+                            <button class="elevated square" id="lockedFoldersRefresh"><i class="bi-arrow-clockwise"></i></button>
                         </ls-div>
 
                         <div id="lockedFolders"></div>
@@ -161,25 +161,25 @@
 
                                 if (tokens && tokens.length > 0) {
                                     tokens.forEach(token => {
-                                        const tokenElement = N({
+                                        const tokenElement = LS.Create({
                                             class: "tokenContainer",
                                             inner: [
-                                                N([
-                                                    N({
+                                                LS.Create([
+                                                    LS.Create({
                                                         class: "tokenTitle",
                                                         inner: token.title
                                                     }),
-                                                    N({
+                                                    LS.Create({
                                                         class: "tokenValue",
                                                         inner: token.value.trim().length > 5 ? token.value.trim().substring(0, 5) + "..." : token.value.trim(),
                                                     }),
                                                 ]),
 
-                                                N("ls-group", [
-                                                    N("button", {
+                                                LS.Create("ls-group", [
+                                                    LS.Create("button", {
                                                         class: "elevated",
                                                         title: "Copy",
-                                                        inner: N("i", { class: "bi-clipboard" }),
+                                                        inner: LS.Create("i", { class: "bi-clipboard" }),
                                                         onclick() {
                                                             if (event.shiftKey) {
                                                                 copyPaste(token.value);
@@ -190,10 +190,10 @@
                                                             LS.Toast.show("Copied to clipboard", { timeout: 1000 });
                                                         }
                                                     }),
-                                                    N("button", {
+                                                    LS.Create("button", {
                                                         class: "elevated warning",
                                                         title: "Delete",
-                                                        inner: N("i", { class: "bi-trash" }),
+                                                        inner: LS.Create("i", { class: "bi-trash" }),
                                                         onclick() {
                                                             tokens = tokens.filter(t => t !== token);
                                                             localStorage.setItem('tokens', JSON.stringify(tokens));
@@ -248,7 +248,7 @@
                     <ls-tab tab-title="<i class='bi-shield-lock'></i>" id="totpManagerTab">
                         <ls-div class="buttons">
                             <h3 class="title">TOTP Manager</h3>
-                            <button class="elevated pill" id="totpAddBtn">Add TOTP</button>
+                            <button class="elevated pill small" id="totpAddBtn">Add TOTP</button>
                         </ls-div>
 
                         <form id="totpForm" class="buttons" style="display:none;" onsubmit="addTotp(this); return false;">
@@ -277,17 +277,17 @@
                                 }
 
                                 totps.forEach((entry, idx) => {
-                                    const container = N({
+                                    const container = LS.Create({
                                         class: "tokenContainer",
                                         inner: [
-                                            N([
-                                                N({ class: "tokenTitle", inner: entry.label }),
-                                                N({ class: "tokenValue", id: "totpCode" + idx, inner: "------" }),
+                                            LS.Create([
+                                                LS.Create({ class: "tokenTitle", inner: entry.label }),
+                                                LS.Create({ class: "tokenValue", id: "totpCode" + idx, inner: "------" }),
                                             ]),
-                                            N("ls-group", [
-                                                N("button", {
+                                            LS.Create("ls-group", [
+                                                LS.Create("button", {
                                                     title: "Copy",
-                                                    inner: N("i", { class: "bi-clipboard" }),
+                                                    inner: LS.Create("i", { class: "bi-clipboard" }),
                                                     onclick() {
                                                         const code = document.getElementById("totpCode" + idx).textContent;
 
@@ -300,10 +300,10 @@
                                                         LS.Toast.show("TOTP copied", { timeout: 1000 });
                                                     }
                                                 }),
-                                                N("button", {
+                                                LS.Create("button", {
                                                     class: "warning",
                                                     title: "Delete",
-                                                    inner: N("i", { class: "bi-trash" }),
+                                                    inner: LS.Create("i", { class: "bi-trash" }),
                                                     onclick() {
                                                         totps.splice(idx, 1);
                                                         localStorage.setItem('totps', JSON.stringify(totps));
